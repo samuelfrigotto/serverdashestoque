@@ -1,0 +1,9 @@
+db/BITESTE.json
+db/BITESTESF.json
+db/new_detalhamento.json
+db/new_resumo.json
+db/SelloutCarga_db.csv
+.venv/
+__pycache__/
+BIEX_TESTENG.json
+BITESTESF.json

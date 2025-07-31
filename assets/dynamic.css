@@ -1,0 +1,78 @@
+
+        :root {
+            --backPriColor: #ffffff;
+            --backSecColor: #f0f0f0;
+            --borderColor: #cccccc;
+            --textColor: black;
+            --selectColor: #333333;
+        }
+
+        body {
+            /*background-color: var(--backPriColor);*/
+            color: var(--textColor);
+            font-size: 13px; 
+        }
+
+        .card-com-hover .botao-detalhes 
+        {
+        display: none;
+        position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 10;
+}
+
+.card-com-hover:hover .botao-detalhes {
+    display: inline-block;
+}
+        
+        .zoom-out {
+            zoom: 80%;
+        }
+
+        .dash-dropdown {
+            background-color: var(--backSecColor);
+            color: var(--textColor);
+        }
+
+        .dash-dropdown .Select-menu-outer {
+            background-color: var(--backSecColor);
+        }
+
+        .dash-dropdown .Select-control {
+            background-color: var(--backSecColor);
+            color: var(--textColor);
+            border-color: var(--borderColor);
+        }
+
+        .dash-dropdown .Select-option {
+            background-color: var(--backSecColor);
+            color: var(--textColor);
+        }
+
+        .dash-dropdown .Select-placeholder {
+            color: var(--selectColor);
+        }
+
+        .dash-dropdown .Select-value-label {
+            color: var(--textColor) !important;
+            background-color: var(--backSecColor);
+        }
+
+        .dash-dropdown .Select-menu-outer {
+            background-color: var(--backSecColor);
+            color: var(--textColor);
+        }
+
+        .dash-graph {
+            background-color: var(--backPriColor);
+            color: var(--textColor);
+            border-color: var(--borderColor);
+        }
+
+        input {
+            background-color: var(--backSecColor);
+            color: var(--textColor);
+            border-color: var(--borderColor);
+        }
+        
