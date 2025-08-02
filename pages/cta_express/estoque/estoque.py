@@ -2,8 +2,11 @@
 import dash
 import pandas as pd
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State, html, dcc, no_update
+from dash import Input, Output, State, html, dcc, no_update, callback_context
 from app import app, session_dataframes_cta_express as sessionDF
+from dash_table import DataTable
+
+
 
 # Importar módulos do estoque
 from .estoque_data import (
@@ -23,6 +26,7 @@ from .estoque_analise import (
     preparar_opcoes_filtros,
     obter_produtos_previsao_estoque
 )
+
 from .estoque_graficos import (
     criar_grafico_estoque_por_grupo,
     criar_grafico_top_produtos_estoque,
@@ -30,7 +34,8 @@ from .estoque_graficos import (
     criar_grafico_categorias_estoque_baixo,
     criar_grafico_estoque_produtos_populares,
     criar_grafico_treemap_estoque_grupo,
-    criar_grafico_produtos_sem_venda_grupo
+    criar_grafico_produtos_sem_venda_grupo,
+    criar_figura_vazia
 )
 from .estoque_componentes import (
     criar_cabecalho_estoque,
@@ -79,73 +84,113 @@ def get_layout(app):
     return layout_principal
 
 def criar_conteudo_principal(df_completo):
-    """Cria conteúdo principal seguindo padrão do projeto."""
     if df_completo is None or df_completo.empty:
         return dbc.Alert("Dados de estoque não carregados.", color="danger")
 
-    # Cards de gráficos seguindo padrão do projeto
     altura_graficos_padrao = '410px'
+    altura_graficos_grandes = '520px'
     
     grafico_estoque_grupo_card = dbc.Card(
-        dbc.CardBody(
+        dbc.CardBody([
             dcc.Graph(
                 id=f'{pageTag}grafico-estoque-grupo', 
                 config={'displayModeBar': False}, 
-                style={'height': '530px'}
-            )
-        ), 
-        className="shadow-sm h-100"
+                style={'height': altura_graficos_grandes}
+            ),
+            dbc.Button(
+                "Ver detalhes",
+                color="primary",
+                size="sm",
+                id=f"btn-{pageTag}-det-fig1",
+                class_name="botao-detalhes rounded",
+                style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+            ),
+        ], className="position-relative"), 
+        className="shadow-sm h-100 card-com-hover"
     )
     
     grafico_estoque_populares_card = html.Div(
         dbc.Card(
-            dbc.CardBody(
+            dbc.CardBody([
                 dcc.Graph(
                     id=f'{pageTag}grafico-estoque-populares', 
                     config={'displayModeBar': False}, 
                     style={'height': altura_graficos_padrao}
-                )
-            )
+                ),
+                dbc.Button(
+                    "Ver detalhes",
+                    color="primary",
+                    size="sm",
+                    id=f"btn-{pageTag}-det-fig2",
+                    class_name="botao-detalhes rounded",
+                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                ),
+            ], className="position-relative")
         ),
         id=f'{pageTag}card-clicavel-populares',
         style={'cursor': 'pointer'},
-        className="shadow-sm h-100"
+        className="shadow-sm h-100 card-com-hover"
     )
     
     grafico_treemap_card = dbc.Card(
-        dbc.CardBody(
+        dbc.CardBody([
             dcc.Graph(
                 id=f'{pageTag}grafico-treemap-estoque', 
-                config={'displayModeBar': False}
-            )
-        ), 
-        className="shadow-sm h-100"
+                config={'displayModeBar': False},
+                style={'height': '430px'}
+            ),
+            dbc.Button(
+                "Ver detalhes",
+                color="primary",
+                size="sm",
+                id=f"btn-{pageTag}-det-fig3",
+                class_name="botao-detalhes rounded",
+                style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+            ),
+        ], className="position-relative"), 
+        className="shadow-sm h-100 card-com-hover"
     )
     
     grafico_top_produtos_card = html.Div(
         dbc.Card([
-            dbc.CardBody(
+            dbc.CardBody([
                 dcc.Graph(
                     id=f'{pageTag}grafico-top-produtos', 
                     config={'displayModeBar': True}, 
                     style={'height': altura_graficos_padrao}
-                )
-            )
-        ], className="shadow-sm h-100 clickable-card"), 
+                ),
+                dbc.Button(
+                    "Ver detalhes",
+                    color="primary",
+                    size="sm",
+                    id=f"btn-{pageTag}-det-fig4",
+                    class_name="botao-detalhes rounded",
+                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                ),
+            ], className="position-relative")
+        ], className="shadow-sm h-100 clickable-card card-com-hover"), 
         id=f"{pageTag}card-clicavel-grafico-donut", 
         style={'cursor': 'pointer'}
     )
     
     grafico_niveis_card = html.Div(
         dbc.Card([
-            dbc.CardBody(
+            dbc.CardBody([
                 dcc.Graph(
                     id=f'{pageTag}grafico-niveis-estoque', 
                     config={'displayModeBar': True}, 
-                    style={'height': '530px'}
-                )
-            )
-        ], className="shadow-sm h-100 clickable-card"), 
+                    style={'height': altura_graficos_grandes}
+                ),
+                dbc.Button(
+                    "Ver detalhes",
+                    color="primary",
+                    size="sm",
+                    id=f"btn-{pageTag}-det-fig5",
+                    class_name="botao-detalhes rounded",
+                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                ),
+            ], className="position-relative")
+        ], className="shadow-sm h-100 clickable-card card-com-hover"), 
         id=f"{pageTag}card-clicavel-grafico-niveis", 
         style={'cursor': 'pointer'}
     )
@@ -157,15 +202,23 @@ def criar_conteudo_principal(df_completo):
     ], className="shadow-sm h-100", style={'height': '450px'})
     
     grafico_categorias_baixo_card = dbc.Card([
-        dbc.CardBody(
+        dbc.CardBody([
             dcc.Graph(
                 id=f'{pageTag}grafico-categorias-estoque-baixo', 
-                config={'displayModeBar': False}
-            )
-        )
-    ], className="shadow-sm h-100", style={'height': '400px'})
+                config={'displayModeBar': False},
+                style={'height': '370px'}
+            ),
+            dbc.Button(
+                "Ver detalhes",
+                color="primary",
+                size="sm",
+                id=f"btn-{pageTag}-det-fig6",
+                class_name="botao-detalhes rounded",
+                style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+            ),
+        ], className="position-relative")
+    ], className="shadow-sm h-100 card-com-hover")
     
-    # Card previsão de estoque compacta
     previsao_estoque_card = dbc.Card(
         dbc.CardBody([
             html.H5("Previsão de Estoque", className="mb-3 text-center fw-bold"),
@@ -174,19 +227,29 @@ def criar_conteudo_principal(df_completo):
         className="shadow-sm h-100"
     )
     
-    # Card produtos sem venda
     grafico_sem_venda_card = html.Div(
         dbc.Card(
-            dbc.CardBody(
-                dcc.Graph(id=f'{pageTag}grafico-produtos-sem-venda')
-            ),
-            className="shadow-sm"
+            dbc.CardBody([
+                dcc.Graph(
+                    id=f'{pageTag}grafico-produtos-sem-venda',
+                    config={'displayModeBar': False},
+                    style={'height': '400px'}
+                ),
+                dbc.Button(
+                    "Ver detalhes",
+                    color="primary",
+                    size="sm",
+                    id=f"btn-{pageTag}-det-fig7",
+                    class_name="botao-detalhes rounded",
+                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                ),
+            ], className="position-relative"),
+            className="shadow-sm card-com-hover"
         ),
         id=f'{pageTag}card-clicavel-sem-venda',
         style={'cursor': 'pointer'}
     )
     
-    # Card sugestão de compras
     tabela_sugestao_compras_card = dbc.Card(
         dbc.CardBody(
             html.Div(id=f'{pageTag}tabela-sugestao-compras-container')
@@ -194,43 +257,95 @@ def criar_conteudo_principal(df_completo):
         className="shadow-sm"
     )
 
-    # Layout principal seguindo padrão do projeto
     layout_principal = html.Div([
         dbc.Row([
             dbc.Col(grafico_estoque_grupo_card, width=12, lg=7),
             dbc.Col(grafico_niveis_card, width=12, lg=5),
-        ], className="g-2 mb-2", align="stretch"),
+        ], className="g-3 mb-3", align="stretch"),
 
-        html.Hr(className="my-2"),
         dbc.Row([
             dbc.Col(grafico_estoque_populares_card, width=12, lg=6),
             dbc.Col(grafico_top_produtos_card, width=12, lg=6),
-        ], className="g-2 mb-2", align="stretch"),
+        ], className="g-3 mb-3", align="stretch"),
 
-        html.Hr(className="my-2"),
         dbc.Row([
             dbc.Col(previsao_estoque_card, width=12, lg=3),
             dbc.Col(grafico_treemap_card, width=12, lg=9),
-        ], className="g-2 mb-2", align="stretch"),
+        ], className="g-3 mb-3", align="stretch"),
 
-        html.Hr(className="my-2"),
         dbc.Row([
             dbc.Col(grafico_categorias_baixo_card, width=12, lg=8),
             dbc.Col(tabela_estoque_baixo_card, width=12, lg=4)
-        ], className="mb-2", align="stretch"),
+        ], className="g-3 mb-3", align="stretch"),
         
-        html.Hr(className="my-2"),
         dbc.Row([
             dbc.Col(grafico_sem_venda_card, width=12)
-        ], className="mb-2"),
+        ], className="g-3 mb-3"),
         
         dbc.Row([
             dbc.Col(tabela_sugestao_compras_card, width=12)
-        ], className="mb-2"),
-    ], className="p-2")
+        ], className="g-3 mb-3"),
+        
+        html.Div([
+            dbc.Modal([
+                dbc.ModalHeader("Detalhes: Volume de Estoque por Grupo"),
+                dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-1")),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar", id=f"close-modal-{pageTag}-det-fig1", className="ml-auto")
+                ),
+            ], id=f"modal-{pageTag}-det-fig1", size="xl", is_open=False, scrollable=True),
+            
+            dbc.Modal([
+                dbc.ModalHeader("Detalhes: Estoque vs Vendas"),
+                dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-2")),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar", id=f"close-modal-{pageTag}-det-fig2", className="ml-auto")
+                ),
+            ], id=f"modal-{pageTag}-det-fig2", size="xl", is_open=False, scrollable=True),
+            
+            dbc.Modal([
+                dbc.ModalHeader("Detalhes: Distribuição por Grupo"),
+                dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-3")),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar", id=f"close-modal-{pageTag}-det-fig3", className="ml-auto")
+                ),
+            ], id=f"modal-{pageTag}-det-fig3", size="xl", is_open=False, scrollable=True),
+            
+            dbc.Modal([
+                dbc.ModalHeader("Detalhes: Top Produtos por Estoque"),
+                dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-4")),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar", id=f"close-modal-{pageTag}-det-fig4", className="ml-auto")
+                ),
+            ], id=f"modal-{pageTag}-det-fig4", size="xl", is_open=False, scrollable=True),
+            
+            dbc.Modal([
+                dbc.ModalHeader("Detalhes: Produtos por Nível de Estoque"),
+                dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-5")),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar", id=f"close-modal-{pageTag}-det-fig5", className="ml-auto")
+                ),
+            ], id=f"modal-{pageTag}-det-fig5", size="xl", is_open=False, scrollable=True),
+            
+            dbc.Modal([
+                dbc.ModalHeader("Detalhes: Categorias com Estoque Baixo"),
+                dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-6")),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar", id=f"close-modal-{pageTag}-det-fig6", className="ml-auto")
+                ),
+            ], id=f"modal-{pageTag}-det-fig6", size="xl", is_open=False, scrollable=True),
+            
+            dbc.Modal([
+                dbc.ModalHeader("Detalhes: Produtos Sem Venda por Grupo"),
+                dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-7")),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar", id=f"close-modal-{pageTag}-det-fig7", className="ml-auto")
+                ),
+            ], id=f"modal-{pageTag}-det-fig7", size="xl", is_open=False, scrollable=True),
+        ])
+    ], className="p-3")
 
     return layout_principal
-
 def register_callbacks(app):
     """Registra todos os callbacks do estoque seguindo padrão do projeto."""
     
@@ -303,7 +418,6 @@ def register_callbacks(app):
         
         if f"{session_id}_estoque" not in sessionDF:
             # Criar figuras vazias se não há dados
-            from .estoque_graficos import criar_figura_vazia
             fig_vazia = criar_figura_vazia("Sem Dados")
             tabela_vazia = criar_tabela_produtos_criticos(pd.DataFrame(), 'tabela-vazia', "Estoque Baixo")
             return (fig_vazia, fig_vazia, tabela_vazia, fig_vazia, fig_vazia,
@@ -411,7 +525,7 @@ def register_callbacks(app):
             return not is_open
         return is_open
 
-    # Callbacks de configurações
+        # Callbacks de configurações
     @app.callback(
         [Output(f'{pageTag}div-status-config-niveis', 'children'),
          Output(f'{pageTag}span-config-atual-limite-baixo', 'children'),
@@ -475,3 +589,162 @@ def register_callbacks(app):
             cats, 
             prods
         )
+
+    # Callbacks dos modais de detalhes
+    def create_modal_callback(modal_id):
+        @app.callback(
+            Output(f"modal-{pageTag}-det-fig{modal_id}", "is_open"),
+            [
+                Input(f"btn-{pageTag}-det-fig{modal_id}", "n_clicks"),
+                Input(f"close-modal-{pageTag}-det-fig{modal_id}", "n_clicks"),
+            ],
+            [State(f"modal-{pageTag}-det-fig{modal_id}", "is_open")],
+            prevent_initial_call=True
+        )
+        def toggle_modal(n_open, n_close, is_open):
+            if n_open or n_close:
+                return not is_open
+            return is_open
+
+    # Callbacks para conteúdo dos modais
+    @app.callback(
+        [Output(f"{pageTag}modal-content-1", "children"),
+         Output(f"{pageTag}modal-content-2", "children"),
+         Output(f"{pageTag}modal-content-3", "children"),
+         Output(f"{pageTag}modal-content-4", "children"),
+         Output(f"{pageTag}modal-content-5", "children"),
+         Output(f"{pageTag}modal-content-6", "children"),
+         Output(f"{pageTag}modal-content-7", "children")],
+        [Input(f"btn-{pageTag}-det-fig1", "n_clicks"),
+         Input(f"btn-{pageTag}-det-fig2", "n_clicks"),
+         Input(f"btn-{pageTag}-det-fig3", "n_clicks"),
+         Input(f"btn-{pageTag}-det-fig4", "n_clicks"),
+         Input(f"btn-{pageTag}-det-fig5", "n_clicks"),
+         Input(f"btn-{pageTag}-det-fig6", "n_clicks"),
+         Input(f"btn-{pageTag}-det-fig7", "n_clicks")],
+        [State(f"{pageTag}session_data", "data")],
+        prevent_initial_call=True
+    )
+    def update_modal_contents(n1, n2, n3, n4, n5, n6, n7, session_data):
+        """Atualiza conteúdo dos modais com dados dos gráficos."""
+        from dash import callback_context
+        from dash_table import DataTable
+        
+        if not callback_context.triggered:
+            return [html.Div()] * 7
+        
+        session_id = session_data.get("session_id", "estoque_default") if session_data else "estoque_default"
+        
+        if f"{session_id}_estoque" not in sessionDF:
+            return [dbc.Alert("Dados não disponíveis", color="warning")] * 7
+            
+        df_estoque = sessionDF[f"{session_id}_estoque"]
+        config_exclusao = carregar_configuracoes_exclusao()
+        dff = aplicar_filtros_exclusao(df_estoque, config_exclusao)
+        
+        # Conteúdo básico para cada modal (pode ser expandido conforme necessário)
+        modal_contents = []
+        
+        # Modal 1 - Estoque por Grupo
+        df_grupo = dff.groupby(EstoqueColumns.GRUPO)[EstoqueColumns.ESTOQUE].sum().reset_index()
+        modal_contents.append(
+            DataTable(
+                data=df_grupo.to_dict('records'),
+                columns=[{"name": "Grupo", "id": EstoqueColumns.GRUPO},
+                        {"name": "Estoque Total", "id": EstoqueColumns.ESTOQUE}],
+                style_table={'overflowX': 'auto'},
+                style_cell={'textAlign': 'left'},
+                sort_action='native'
+            )
+        )
+        
+        # Modal 2 - Produtos populares
+        df_populares = dff.nlargest(10, EstoqueColumns.VENDA_MENSAL)
+        modal_contents.append(
+            DataTable(
+                data=df_populares[[EstoqueColumns.PRODUTO, EstoqueColumns.ESTOQUE, EstoqueColumns.VENDA_MENSAL]].to_dict('records'),
+                columns=[{"name": "Produto", "id": EstoqueColumns.PRODUTO},
+                        {"name": "Estoque", "id": EstoqueColumns.ESTOQUE},
+                        {"name": "Venda Mensal", "id": EstoqueColumns.VENDA_MENSAL}],
+                style_table={'overflowX': 'auto'},
+                style_cell={'textAlign': 'left'},
+                sort_action='native'
+            )
+        )
+        
+        # Modal 3 - Treemap (resumo por grupo)
+        modal_contents.append(modal_contents[0])  # Mesmo conteúdo que modal 1
+        
+        # Modal 4 - Top produtos
+        df_top = dff.nlargest(10, EstoqueColumns.ESTOQUE)
+        modal_contents.append(
+            DataTable(
+                data=df_top[[EstoqueColumns.PRODUTO, EstoqueColumns.ESTOQUE]].to_dict('records'),
+                columns=[{"name": "Produto", "id": EstoqueColumns.PRODUTO},
+                        {"name": "Estoque", "id": EstoqueColumns.ESTOQUE}],
+                style_table={'overflowX': 'auto'},
+                style_cell={'textAlign': 'left'},
+                sort_action='native'
+            )
+        )
+        
+        # Modal 5 - Níveis (estatísticas)
+        config_niveis = carregar_definicoes_niveis_estoque()
+        limite_baixo = config_niveis.get("limite_estoque_baixo", 10)
+        limite_medio = config_niveis.get("limite_estoque_medio", 100)
+        
+        df_niveis = dff.copy()
+        df_niveis['EstoqueNum'] = pd.to_numeric(df_niveis[EstoqueColumns.ESTOQUE], errors='coerce')
+        baixo = len(df_niveis[df_niveis['EstoqueNum'] <= limite_baixo])
+        medio = len(df_niveis[(df_niveis['EstoqueNum'] > limite_baixo) & (df_niveis['EstoqueNum'] <= limite_medio)])
+        alto = len(df_niveis[df_niveis['EstoqueNum'] > limite_medio])
+        
+        modal_contents.append(
+            html.Div([
+                html.H5("Estatísticas por Nível de Estoque"),
+                html.P(f"Estoque Baixo (≤{limite_baixo}): {baixo} produtos"),
+                html.P(f"Estoque Médio ({limite_baixo} < E ≤ {limite_medio}): {medio} produtos"),
+                html.P(f"Estoque Alto (>{limite_medio}): {alto} produtos"),
+            ])
+        )
+        
+        # Modal 6 - Categorias estoque baixo
+        df_baixo = identificar_produtos_estoque_baixo(dff, limite_baixo)
+        if not df_baixo.empty:
+            categorias_baixo = df_baixo.groupby(EstoqueColumns.CATEGORIA)[EstoqueColumns.CODIGO].count().reset_index()
+            categorias_baixo.columns = [EstoqueColumns.CATEGORIA, 'Qtd_Produtos_Baixos']
+            modal_contents.append(
+                DataTable(
+                    data=categorias_baixo.to_dict('records'),
+                    columns=[{"name": "Categoria", "id": EstoqueColumns.CATEGORIA},
+                            {"name": "Produtos com Estoque Baixo", "id": 'Qtd_Produtos_Baixos'}],
+                    style_table={'overflowX': 'auto'},
+                    style_cell={'textAlign': 'left'},
+                    sort_action='native'
+                )
+            )
+        else:
+            modal_contents.append(dbc.Alert("Nenhum produto com estoque baixo", color="success"))
+        
+        # Modal 7 - Produtos sem venda
+        df_sem_venda = dff[pd.to_numeric(dff[EstoqueColumns.VENDA_MENSAL], errors='coerce') == 0]
+        if not df_sem_venda.empty:
+            modal_contents.append(
+                DataTable(
+                    data=df_sem_venda[[EstoqueColumns.PRODUTO, EstoqueColumns.ESTOQUE, EstoqueColumns.GRUPO]].head(50).to_dict('records'),
+                    columns=[{"name": "Produto", "id": EstoqueColumns.PRODUTO},
+                            {"name": "Estoque", "id": EstoqueColumns.ESTOQUE},
+                            {"name": "Grupo", "id": EstoqueColumns.GRUPO}],
+                    style_table={'overflowX': 'auto'},
+                    style_cell={'textAlign': 'left'},
+                    sort_action='native'
+                )
+            )
+        else:
+            modal_contents.append(dbc.Alert("Todos os produtos têm vendas registradas", color="success"))
+        
+        return modal_contents
+
+    # Criar callbacks para cada modal
+    for i in range(1, 8):
+        create_modal_callback(i)

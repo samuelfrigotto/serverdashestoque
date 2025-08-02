@@ -123,7 +123,7 @@ def criar_grafico_top_produtos_estoque(df, n=7, height=None):
     # Aplicar abreviação seguindo padrão do projeto
     top_n_df = top_n_df.copy()
     top_n_df['NomeExibicao'] = top_n_df[EstoqueColumns.PRODUTO].apply(
-        lambda x: conversores.abreviar(x, 20)
+        lambda x: conversores.abreviar(x, 25)  # Aumentei o limite para melhor legibilidade
     )
     
     data_para_pie = [
@@ -138,28 +138,50 @@ def criar_grafico_top_produtos_estoque(df, n=7, height=None):
         return criar_figura_vazia(f"Top {n} Produtos por Estoque (Sem dados para gráfico)", height=height)
         
     df_pie = pd.DataFrame(data_para_pie)
+    
+    # Usar cores mais adequadas e visíveis
+    cores_personalizadas = [
+        '#FF7F0E',  # Laranja principal
+        '#1F77B4',  # Azul
+        '#2CA02C',  # Verde
+        '#D62728',  # Vermelho
+        '#9467BD',  # Roxo
+        '#8C564B',  # Marrom
+        '#E377C2',  # Rosa
+        '#7F7F7F',  # Cinza para "Outros"
+    ]
         
     fig = px.pie(
         df_pie, 
         values='Estoque', 
         names='NomeExibicao', 
-        title=f'Participação dos Top {n} Produtos no Estoque (+ Outros)', 
-        hole=.4,
-        labels={'Estoque': 'Quantidade em Estoque', 'NomeExibicao': 'Produto/Segmento'},
-        color_discrete_sequence=Colors.ORANGE_COLORS
+        title=f'Top {n} Produtos com Maior Estoque', 
+        hole=.5,  # Donut mais definido
+        labels={'Estoque': 'Quantidade em Estoque', 'NomeExibicao': 'Produto'},
+        color_discrete_sequence=cores_personalizadas
     )
     
     fig.update_traces(
-        textposition='inside', 
-        textinfo='percent+label', 
-        insidetextorientation='radial',
+        textposition='outside', 
+        textinfo='percent+label',
+        textfont=dict(size=11, color='black'),
+        marker=dict(line=dict(color='white', width=2)),
         pull=[0.05 if nome != 'Outros Produtos' else 0 for nome in df_pie['NomeExibicao']]
     )
     
     fig.update_layout(globalTemplate)
     fig.update_layout(
         title_x=0.5,
-        height=height if height else Graphcs.pxGraficos
+        title_font_size=16,
+        height=height if height else 400,  # Altura mais adequada
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="middle",
+            y=0.5,
+            xanchor="left",
+            x=1.05
+        )
     )
     
     return fig

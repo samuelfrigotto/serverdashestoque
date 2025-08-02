@@ -22,14 +22,52 @@ def criar_cabecalho_estoque(df_completo):
     else:
         metricsDict = calcular_metricas_header(df_completo)
 
-    return packCode.HeaderDash(
-        title="Controle de Estoque",
-        Descricao="Dados atualizados conforme filtros aplicados",
-        pageTag="CEestoque_",
-        lstMetric=metricsDict,
-        isFilter=False,
-        MetricsWidth=8
-    )
+    # Criar header customizado com botões de filtros e configurações
+    return dbc.Row([
+        dbc.Card([
+            dbc.CardHeader([
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Row(
+                            html.H3("Controle de Estoque", style={"fontSize": "24px"}),
+                            class_name="p-0 g-0 m-0",
+                        ),
+                        dbc.Row(html.Hr()),
+                        dbc.Row(
+                            html.H6("Dados atualizados conforme filtros aplicados", style={"fontSize": "15px"}),
+                            class_name="p-0 g-0 m-0",
+                        ),
+                    ], align="center", width=3),
+                    dbc.Col(
+                        dbc.Row(
+                            supportClass.dictHeaderDash("CEestoque_", metricsDict),
+                            id="CEestoque_metrics",
+                        ),
+                        width=8,
+                    ),
+                    dbc.Col([
+                        dbc.ButtonGroup([
+                            dbc.Button(
+                                [html.I(className="bi bi-funnel-fill me-1"), "Filtros"],
+                                id="CEestoque_btn-toggle-painel-esquerdo",
+                                color="primary",
+                                size="sm",
+                                className="shadow-sm"
+                            ),
+                            dbc.Button(
+                                [html.I(className="bi bi-gear-fill me-1"), "Config"],
+                                id="CEestoque_btn-abrir-modal-config",
+                                color="secondary",
+                                size="sm",
+                                className="shadow-sm"
+                            ),
+                        ], vertical=True, className="w-100")
+                    ], align="center", width=1),
+                ])
+            ])
+        ], class_name="g-0"),
+    ], class_name="g-0")
+
 
 def criar_painel_filtros(df_completo):
     """Cria painel de filtros seguindo padrão do projeto."""
