@@ -105,7 +105,13 @@ def criar_conteudo_principal(df_completo):
                 size="sm",
                 id=f"btn-{pageTag}-det-fig1",
                 class_name="botao-detalhes rounded",
-                style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
+                style={
+                    'position': 'absolute', 
+                    'bottom': '10px', 
+                    'right': '10px',
+                    'z-index': '10',
+                    'opacity': '0.8'
+                }
             ),
         ], className="position-relative"), 
         className="shadow-sm h-100 card-com-hover"
@@ -125,7 +131,13 @@ def criar_conteudo_principal(df_completo):
                     size="sm",
                     id=f"btn-{pageTag}-det-fig2",
                     class_name="botao-detalhes rounded",
-                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
+                    style={
+                        'position': 'absolute', 
+                        'bottom': '10px', 
+                        'right': '10px',
+                        'z-index': '10',
+                        'opacity': '0.8'
+                    }
                 ),
             ], className="position-relative")
         ),
@@ -147,7 +159,13 @@ def criar_conteudo_principal(df_completo):
                 size="sm",
                 id=f"btn-{pageTag}-det-fig3",
                 class_name="botao-detalhes rounded",
-                style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
+                style={
+                    'position': 'absolute', 
+                    'bottom': '10px', 
+                    'right': '10px',
+                    'z-index': '10',
+                    'opacity': '0.8'
+                }
             ),
         ], className="position-relative"), 
         className="shadow-sm h-100 card-com-hover"
@@ -167,7 +185,13 @@ def criar_conteudo_principal(df_completo):
                     size="sm",
                     id=f"btn-{pageTag}-det-fig4",
                     class_name="botao-detalhes rounded",
-                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
+                    style={
+                        'position': 'absolute', 
+                        'bottom': '10px', 
+                        'right': '10px',
+                        'z-index': '10',
+                        'opacity': '0.8'
+                    }
                 ),
             ], className="position-relative")
         ], className="shadow-sm h-100 clickable-card card-com-hover"), 
@@ -189,7 +213,13 @@ def criar_conteudo_principal(df_completo):
                     size="sm",
                     id=f"btn-{pageTag}-det-fig5",
                     class_name="botao-detalhes rounded",
-                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
+                    style={
+                        'position': 'absolute', 
+                        'bottom': '10px', 
+                        'right': '10px',
+                        'z-index': '10',
+                        'opacity': '0.8'
+                    }
                 ),
             ], className="position-relative")
         ], className="shadow-sm h-100 clickable-card card-com-hover"), 
@@ -216,7 +246,13 @@ def criar_conteudo_principal(df_completo):
                 size="sm",
                 id=f"btn-{pageTag}-det-fig6",
                 class_name="botao-detalhes rounded",
-                style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
+                style={
+                    'position': 'absolute', 
+                    'bottom': '10px', 
+                    'right': '10px',
+                    'z-index': '10',
+                    'opacity': '0.8'
+                }
             ),
         ], className="position-relative")
     ], className="shadow-sm h-100 card-com-hover")
@@ -245,7 +281,13 @@ def criar_conteudo_principal(df_completo):
                     size="sm",
                     id=f"btn-{pageTag}-det-fig7",
                     class_name="botao-detalhes rounded",
-                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
+                    style={
+                        'position': 'absolute', 
+                        'bottom': '10px', 
+                        'right': '10px',
+                        'z-index': '10',
+                        'opacity': '0.8'
+                    }
                 ),
             ], className="position-relative"),
             className="shadow-sm card-com-hover"
@@ -264,25 +306,6 @@ def criar_conteudo_principal(df_completo):
 
     # Layout principal com proporções corrigidas
     layout_principal = html.Div([
-        # CSS para os botões de detalhes
-        html.Style("""
-        .card-com-hover .botao-detalhes {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            z-index: 10;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        
-        .card-com-hover:hover .botao-detalhes {
-            opacity: 1;
-        }
-        
-        .position-relative {
-            position: relative;
-        }
-        """),
         
         # Primeira linha: Gráfico de linha (grupo) + Gráfico de níveis
         dbc.Row([

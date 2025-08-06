@@ -76,26 +76,30 @@ def criar_grafico_estoque_por_grupo(df):
             EstoqueColumns.ESTOQUE: 'Quantidade Total em Estoque', 
             EstoqueColumns.GRUPO: 'Grupo'
         },
-        height=Graphcs.pxGraficos
+        height=450  # Altura maior
     )
     
-    # Aplicar cores seguindo padrão do projeto
+    # Aplicar cores alaranjadas seguindo padrão do projeto
     fig.update_traces(
-        line=dict(width=2.5, shape='spline', color=Graphcs.defaultColor),
-        marker=dict(size=8, symbol='circle', color=Graphcs.defaultColor),
+        line=dict(width=3, shape='spline', color='#FF7F0E'),  # Laranja mais forte
+        marker=dict(size=10, symbol='circle', color='#FF4500'),  # Markers alaranjados
         fill='tozeroy',
-        fillcolor=f'rgba(255, 127, 42, 0.2)'
+        fillcolor='rgba(255, 127, 14, 0.2)'  # Preenchimento alaranjado
     )
     
     fig.update_layout(globalTemplate)
     fig.update_layout(
         title_x=0.5,
+        title_font_size=16,
         xaxis_title="Grupos de Produto",
         yaxis_title="Quantidade Total em Estoque",
-        showlegend=False
+        showlegend=False,
+        margin=dict(l=60, r=30, t=60, b=60)  # Margens balanceadas
     )
     
     return fig
+
+
 
 def criar_grafico_top_produtos_estoque(df, n=7, height=None):
     """Cria gráfico top produtos por estoque seguindo padrão do projeto."""
@@ -123,7 +127,7 @@ def criar_grafico_top_produtos_estoque(df, n=7, height=None):
     # Aplicar abreviação seguindo padrão do projeto
     top_n_df = top_n_df.copy()
     top_n_df['NomeExibicao'] = top_n_df[EstoqueColumns.PRODUTO].apply(
-        lambda x: conversores.abreviar(x, 25)  # Aumentei o limite para melhor legibilidade
+        lambda x: conversores.abreviar(x, 25)
     )
     
     data_para_pie = [
@@ -139,16 +143,16 @@ def criar_grafico_top_produtos_estoque(df, n=7, height=None):
         
     df_pie = pd.DataFrame(data_para_pie)
     
-    # Usar cores mais adequadas e visíveis
-    cores_personalizadas = [
+    # Usar cores alaranjadas para compatibilidade com o tema
+    cores_alaranjadas = [
         '#FF7F0E',  # Laranja principal
-        '#1F77B4',  # Azul
-        '#2CA02C',  # Verde
-        '#D62728',  # Vermelho
-        '#9467BD',  # Roxo
-        '#8C564B',  # Marrom
-        '#E377C2',  # Rosa
-        '#7F7F7F',  # Cinza para "Outros"
+        '#FF4500',  # Laranja vermelho
+        '#FFB347',  # Laranja claro
+        '#FF8C00',  # Laranja escuro
+        '#FFA500',  # Laranja médio
+        '#FF6347',  # Tomate
+        '#FF9500',  # Laranja vibrante
+        '#D3D3D3',  # Cinza para "Outros"
     ]
         
     fig = px.pie(
@@ -156,15 +160,15 @@ def criar_grafico_top_produtos_estoque(df, n=7, height=None):
         values='Estoque', 
         names='NomeExibicao', 
         title=f'Top {n} Produtos com Maior Estoque', 
-        hole=.5,  # Donut mais definido
+        hole=.4,  # Donut
         labels={'Estoque': 'Quantidade em Estoque', 'NomeExibicao': 'Produto'},
-        color_discrete_sequence=cores_personalizadas
+        color_discrete_sequence=cores_alaranjadas
     )
     
     fig.update_traces(
         textposition='outside', 
         textinfo='percent+label',
-        textfont=dict(size=11, color='black'),
+        textfont=dict(size=10, color='black'),
         marker=dict(line=dict(color='white', width=2)),
         pull=[0.05 if nome != 'Outros Produtos' else 0 for nome in df_pie['NomeExibicao']]
     )
@@ -173,18 +177,22 @@ def criar_grafico_top_produtos_estoque(df, n=7, height=None):
     fig.update_layout(
         title_x=0.5,
         title_font_size=16,
-        height=height if height else 400,  # Altura mais adequada
+        height=height if height else 450,  # Altura maior
         showlegend=True,
         legend=dict(
             orientation="v",
             yanchor="middle",
             y=0.5,
             xanchor="left",
-            x=1.05
-        )
+            x=1.05,
+            font=dict(size=9)
+        ),
+        margin=dict(l=30, r=120, t=60, b=30)  # Mais espaço para legenda
     )
     
     return fig
+
+
 
 def criar_grafico_niveis_estoque(df, limite_baixo=10, limite_medio=100, height=None):
     """Cria gráfico de níveis de estoque seguindo padrão do projeto."""
@@ -223,11 +231,11 @@ def criar_grafico_niveis_estoque(df, limite_baixo=10, limite_medio=100, height=N
     if contagem_niveis.empty or contagem_niveis['Contagem'].sum() == 0:
         return criar_figura_vazia("Níveis de Estoque (Sem Produtos para Classificar)", height=height)
 
-    # Definir cores seguindo padrão do projeto
+    # Definir cores alaranjadas seguindo padrão do projeto
     mapa_cores = {
-        f'Baixo (≤{float(limite_baixo):g})': Colors.colorGraphcs,
-        f'Médio ({float(limite_baixo):g} < E ≤ {float(limite_medio):g})': '#FFA500',
-        f'Alto (>{float(limite_medio):g})': '#FFD700',
+        f'Baixo (≤{float(limite_baixo):g})': '#FF4500',    # Vermelho alaranjado
+        f'Médio ({float(limite_baixo):g} < E ≤ {float(limite_medio):g})': '#FF7F0E',  # Laranja principal
+        f'Alto (>{float(limite_medio):g})': '#FFB347',     # Laranja claro
         'Desconhecido': '#D3D3D3',
         'Desconhecido (Limites Inválidos)': '#A9A9A9'
     }
@@ -239,16 +247,24 @@ def criar_grafico_niveis_estoque(df, limite_baixo=10, limite_medio=100, height=N
         title='Produtos por Nível de Estoque',
         labels={'Contagem': 'Nº de Produtos', 'NivelEstoque': 'Nível de Estoque'},
         color='NivelEstoque',
-        color_discrete_map=mapa_cores
+        color_discrete_map=mapa_cores,
+        text='Contagem'
     )
     
-    fig.update_traces(textposition='outside')
+    fig.update_traces(
+        textposition='outside',
+        textfont=dict(size=12, color='black')
+    )
     fig.update_layout(globalTemplate)
     fig.update_layout(
         showlegend=False,
         title_x=0.5,
+        title_font_size=16,
         xaxis_title=None,
-        height=height if height else Graphcs.pxGraficos
+        yaxis_title="Nº de Produtos",
+        height=height if height else 450,  # Altura maior
+        xaxis=dict(tickangle=0),  # Labels retas para melhor legibilidade
+        margin=dict(l=60, r=30, t=60, b=60)  # Margens balanceadas
     )
     
     return fig
@@ -305,11 +321,12 @@ def criar_grafico_categorias_estoque_baixo(df_estoque_baixo, top_n=10):
     
     return fig
 
+
 def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
     """Cria gráfico de estoque vs venda dos produtos populares seguindo padrão do projeto."""
-    if (df is None or df.empty or 
-        EstoqueColumns.PRODUTO not in df.columns or 
-        EstoqueColumns.VENDA_MENSAL not in df.columns or 
+    if (df is None or df.empty or
+        EstoqueColumns.PRODUTO not in df.columns or
+        EstoqueColumns.VENDA_MENSAL not in df.columns or
         EstoqueColumns.ESTOQUE not in df.columns):
         return criar_figura_vazia(f"Venda vs. Estoque dos Top {n} Produtos (Sem Dados)")
 
@@ -321,22 +338,28 @@ def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
         df_plot[EstoqueColumns.ESTOQUE], errors='coerce'
     ).fillna(0)
 
-    produtos_populares_df = df_plot[df_plot['VendaMensalNum'] > 0].nlargest(n, 'VendaMensalNum')
-    
+    # Agrupar por produto para evitar duplicatas e somar os valores
+    df_agrupado = df_plot.groupby(EstoqueColumns.PRODUTO).agg({
+        'VendaMensalNum': 'sum',
+        'EstoqueNum': 'sum'
+    }).reset_index()
+
+    produtos_populares_df = df_agrupado[df_agrupado['VendaMensalNum'] > 0].nlargest(n, 'VendaMensalNum')
+
     if produtos_populares_df.empty:
         return criar_figura_vazia(f"Venda vs. Estoque dos Top {n} Produtos (Sem produtos com vendas)")
 
     produtos_populares_df = produtos_populares_df.sort_values(by='VendaMensalNum', ascending=False)
-    
-    # Aplicar abreviação se solicitado seguindo padrão do projeto
+
     if abreviar_nomes:
+        x_axis_values = produtos_populares_df[EstoqueColumns.PRODUTO].apply(
+            lambda x: conversores.abreviar(x, 10)
+        )
+    else:
         x_axis_values = produtos_populares_df[EstoqueColumns.PRODUTO].apply(
             lambda x: conversores.abreviar(x, 15)
         )
-    else:
-        x_axis_values = produtos_populares_df[EstoqueColumns.PRODUTO]
 
-    # Usar cores do projeto
     cor_estoque = Graphcs.defaultColor
     cor_vendas = '#DC3545'
 
@@ -346,7 +369,7 @@ def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
         y=produtos_populares_df['EstoqueNum'],
         marker_color=cor_estoque
     )
-    
+
     trace_vendas = go.Bar(
         name='Vendas no Mês',
         x=x_axis_values,
@@ -359,15 +382,31 @@ def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
     fig.update_layout(globalTemplate)
     fig.update_layout(
         barmode='group',
+        bargap=0.15,
+        bargroupgap=0.1,
         title_text=f'Estoque vs. Venda Mensal (Top {produtos_populares_df.shape[0]} Produtos Populares)',
         title_x=0.5,
         xaxis_title=None,
         yaxis_title="Quantidade",
         showlegend=True,
-        height=Graphcs.pxGraficos
+        height=500,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.3,
+            xanchor="center",
+            x=0.5
+        ),
+        margin=dict(l=50, r=30, t=50, b=150),
+        xaxis=dict(
+            tickangle=45,
+            tickmode='linear',
+            automargin=True
+        )
     )
 
     return fig
+
 
 def criar_grafico_treemap_estoque_grupo(df_filtrado):
     """Cria treemap de estoque por grupo seguindo padrão do projeto."""
