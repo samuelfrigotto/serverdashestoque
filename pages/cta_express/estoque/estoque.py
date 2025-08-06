@@ -84,9 +84,11 @@ def get_layout(app):
     return layout_principal
 
 def criar_conteudo_principal(df_completo):
+    """Cria conteúdo principal seguindo padrão do projeto."""
     if df_completo is None or df_completo.empty:
         return dbc.Alert("Dados de estoque não carregados.", color="danger")
 
+    # Cards de gráficos seguindo padrão do projeto com alturas padronizadas
     altura_graficos_padrao = '410px'
     altura_graficos_grandes = '520px'
     
@@ -103,7 +105,7 @@ def criar_conteudo_principal(df_completo):
                 size="sm",
                 id=f"btn-{pageTag}-det-fig1",
                 class_name="botao-detalhes rounded",
-                style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
             ),
         ], className="position-relative"), 
         className="shadow-sm h-100 card-com-hover"
@@ -123,7 +125,7 @@ def criar_conteudo_principal(df_completo):
                     size="sm",
                     id=f"btn-{pageTag}-det-fig2",
                     class_name="botao-detalhes rounded",
-                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
                 ),
             ], className="position-relative")
         ),
@@ -145,7 +147,7 @@ def criar_conteudo_principal(df_completo):
                 size="sm",
                 id=f"btn-{pageTag}-det-fig3",
                 class_name="botao-detalhes rounded",
-                style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
             ),
         ], className="position-relative"), 
         className="shadow-sm h-100 card-com-hover"
@@ -165,7 +167,7 @@ def criar_conteudo_principal(df_completo):
                     size="sm",
                     id=f"btn-{pageTag}-det-fig4",
                     class_name="botao-detalhes rounded",
-                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
                 ),
             ], className="position-relative")
         ], className="shadow-sm h-100 clickable-card card-com-hover"), 
@@ -187,7 +189,7 @@ def criar_conteudo_principal(df_completo):
                     size="sm",
                     id=f"btn-{pageTag}-det-fig5",
                     class_name="botao-detalhes rounded",
-                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
                 ),
             ], className="position-relative")
         ], className="shadow-sm h-100 clickable-card card-com-hover"), 
@@ -214,11 +216,12 @@ def criar_conteudo_principal(df_completo):
                 size="sm",
                 id=f"btn-{pageTag}-det-fig6",
                 class_name="botao-detalhes rounded",
-                style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
             ),
         ], className="position-relative")
     ], className="shadow-sm h-100 card-com-hover")
     
+    # Card previsão de estoque compacta
     previsao_estoque_card = dbc.Card(
         dbc.CardBody([
             html.H5("Previsão de Estoque", className="mb-3 text-center fw-bold"),
@@ -227,6 +230,7 @@ def criar_conteudo_principal(df_completo):
         className="shadow-sm h-100"
     )
     
+    # Card produtos sem venda
     grafico_sem_venda_card = html.Div(
         dbc.Card(
             dbc.CardBody([
@@ -241,7 +245,7 @@ def criar_conteudo_principal(df_completo):
                     size="sm",
                     id=f"btn-{pageTag}-det-fig7",
                     class_name="botao-detalhes rounded",
-                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px', 'display': 'none'}
+                    style={'position': 'absolute', 'bottom': '10px', 'right': '10px'}
                 ),
             ], className="position-relative"),
             className="shadow-sm card-com-hover"
@@ -250,6 +254,7 @@ def criar_conteudo_principal(df_completo):
         style={'cursor': 'pointer'}
     )
     
+    # Card sugestão de compras
     tabela_sugestao_compras_card = dbc.Card(
         dbc.CardBody(
             html.Div(id=f'{pageTag}tabela-sugestao-compras-container')
@@ -257,36 +262,65 @@ def criar_conteudo_principal(df_completo):
         className="shadow-sm"
     )
 
+    # Layout principal com proporções corrigidas
     layout_principal = html.Div([
+        # CSS para os botões de detalhes
+        html.Style("""
+        .card-com-hover .botao-detalhes {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .card-com-hover:hover .botao-detalhes {
+            opacity: 1;
+        }
+        
+        .position-relative {
+            position: relative;
+        }
+        """),
+        
+        # Primeira linha: Gráfico de linha (grupo) + Gráfico de níveis
         dbc.Row([
             dbc.Col(grafico_estoque_grupo_card, width=12, lg=7),
             dbc.Col(grafico_niveis_card, width=12, lg=5),
         ], className="g-3 mb-3", align="stretch"),
 
+        # Segunda linha: Estoque vs Vendas + Top produtos donut
         dbc.Row([
             dbc.Col(grafico_estoque_populares_card, width=12, lg=6),
             dbc.Col(grafico_top_produtos_card, width=12, lg=6),
         ], className="g-3 mb-3", align="stretch"),
 
+        # Terceira linha: Previsão + Treemap
         dbc.Row([
             dbc.Col(previsao_estoque_card, width=12, lg=3),
             dbc.Col(grafico_treemap_card, width=12, lg=9),
         ], className="g-3 mb-3", align="stretch"),
 
+        # Quarta linha: Categorias estoque baixo + Tabela produtos críticos
         dbc.Row([
             dbc.Col(grafico_categorias_baixo_card, width=12, lg=8),
             dbc.Col(tabela_estoque_baixo_card, width=12, lg=4)
         ], className="g-3 mb-3", align="stretch"),
         
+        # Quinta linha: Produtos sem venda
         dbc.Row([
             dbc.Col(grafico_sem_venda_card, width=12)
         ], className="g-3 mb-3"),
         
+        # Sexta linha: Sugestão de compras
         dbc.Row([
             dbc.Col(tabela_sugestao_compras_card, width=12)
         ], className="g-3 mb-3"),
         
+        # Modais dos gráficos (invisíveis)
         html.Div([
+            # Modal 1 - Estoque por Grupo
             dbc.Modal([
                 dbc.ModalHeader("Detalhes: Volume de Estoque por Grupo"),
                 dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-1")),
@@ -295,6 +329,7 @@ def criar_conteudo_principal(df_completo):
                 ),
             ], id=f"modal-{pageTag}-det-fig1", size="xl", is_open=False, scrollable=True),
             
+            # Modal 2 - Estoque vs Vendas  
             dbc.Modal([
                 dbc.ModalHeader("Detalhes: Estoque vs Vendas"),
                 dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-2")),
@@ -303,6 +338,7 @@ def criar_conteudo_principal(df_completo):
                 ),
             ], id=f"modal-{pageTag}-det-fig2", size="xl", is_open=False, scrollable=True),
             
+            # Modal 3 - Treemap
             dbc.Modal([
                 dbc.ModalHeader("Detalhes: Distribuição por Grupo"),
                 dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-3")),
@@ -311,6 +347,7 @@ def criar_conteudo_principal(df_completo):
                 ),
             ], id=f"modal-{pageTag}-det-fig3", size="xl", is_open=False, scrollable=True),
             
+            # Modal 4 - Top Produtos
             dbc.Modal([
                 dbc.ModalHeader("Detalhes: Top Produtos por Estoque"),
                 dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-4")),
@@ -319,6 +356,7 @@ def criar_conteudo_principal(df_completo):
                 ),
             ], id=f"modal-{pageTag}-det-fig4", size="xl", is_open=False, scrollable=True),
             
+            # Modal 5 - Níveis de Estoque
             dbc.Modal([
                 dbc.ModalHeader("Detalhes: Produtos por Nível de Estoque"),
                 dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-5")),
@@ -327,6 +365,7 @@ def criar_conteudo_principal(df_completo):
                 ),
             ], id=f"modal-{pageTag}-det-fig5", size="xl", is_open=False, scrollable=True),
             
+            # Modal 6 - Categorias Estoque Baixo
             dbc.Modal([
                 dbc.ModalHeader("Detalhes: Categorias com Estoque Baixo"),
                 dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-6")),
@@ -335,6 +374,7 @@ def criar_conteudo_principal(df_completo):
                 ),
             ], id=f"modal-{pageTag}-det-fig6", size="xl", is_open=False, scrollable=True),
             
+            # Modal 7 - Produtos Sem Venda
             dbc.Modal([
                 dbc.ModalHeader("Detalhes: Produtos Sem Venda por Grupo"),
                 dbc.ModalBody(html.Div(id=f"{pageTag}modal-content-7")),
@@ -346,6 +386,8 @@ def criar_conteudo_principal(df_completo):
     ], className="p-3")
 
     return layout_principal
+
+
 def register_callbacks(app):
     """Registra todos os callbacks do estoque seguindo padrão do projeto."""
     
@@ -590,21 +632,90 @@ def register_callbacks(app):
             prods
         )
 
-    # Callbacks dos modais de detalhes
-    def create_modal_callback(modal_id):
-        @app.callback(
-            Output(f"modal-{pageTag}-det-fig{modal_id}", "is_open"),
-            [
-                Input(f"btn-{pageTag}-det-fig{modal_id}", "n_clicks"),
-                Input(f"close-modal-{pageTag}-det-fig{modal_id}", "n_clicks"),
-            ],
-            [State(f"modal-{pageTag}-det-fig{modal_id}", "is_open")],
-            prevent_initial_call=True
-        )
-        def toggle_modal(n_open, n_close, is_open):
-            if n_open or n_close:
-                return not is_open
-            return is_open
+    # Callbacks dos modais de detalhes - versão simplificada
+    @app.callback(
+        Output(f"modal-{pageTag}-det-fig1", "is_open"),
+        [Input(f"btn-{pageTag}-det-fig1", "n_clicks"),
+         Input(f"close-modal-{pageTag}-det-fig1", "n_clicks")],
+        [State(f"modal-{pageTag}-det-fig1", "is_open")],
+        prevent_initial_call=True
+    )
+    def toggle_modal_1(n_open, n_close, is_open):
+        if n_open or n_close:
+            return not is_open
+        return is_open
+    
+    @app.callback(
+        Output(f"modal-{pageTag}-det-fig2", "is_open"),
+        [Input(f"btn-{pageTag}-det-fig2", "n_clicks"),
+         Input(f"close-modal-{pageTag}-det-fig2", "n_clicks")],
+        [State(f"modal-{pageTag}-det-fig2", "is_open")],
+        prevent_initial_call=True
+    )
+    def toggle_modal_2(n_open, n_close, is_open):
+        if n_open or n_close:
+            return not is_open
+        return is_open
+    
+    @app.callback(
+        Output(f"modal-{pageTag}-det-fig3", "is_open"),
+        [Input(f"btn-{pageTag}-det-fig3", "n_clicks"),
+         Input(f"close-modal-{pageTag}-det-fig3", "n_clicks")],
+        [State(f"modal-{pageTag}-det-fig3", "is_open")],
+        prevent_initial_call=True
+    )
+    def toggle_modal_3(n_open, n_close, is_open):
+        if n_open or n_close:
+            return not is_open
+        return is_open
+    
+    @app.callback(
+        Output(f"modal-{pageTag}-det-fig4", "is_open"),
+        [Input(f"btn-{pageTag}-det-fig4", "n_clicks"),
+         Input(f"close-modal-{pageTag}-det-fig4", "n_clicks")],
+        [State(f"modal-{pageTag}-det-fig4", "is_open")],
+        prevent_initial_call=True
+    )
+    def toggle_modal_4(n_open, n_close, is_open):
+        if n_open or n_close:
+            return not is_open
+        return is_open
+    
+    @app.callback(
+        Output(f"modal-{pageTag}-det-fig5", "is_open"),
+        [Input(f"btn-{pageTag}-det-fig5", "n_clicks"),
+         Input(f"close-modal-{pageTag}-det-fig5", "n_clicks")],
+        [State(f"modal-{pageTag}-det-fig5", "is_open")],
+        prevent_initial_call=True
+    )
+    def toggle_modal_5(n_open, n_close, is_open):
+        if n_open or n_close:
+            return not is_open
+        return is_open
+    
+    @app.callback(
+        Output(f"modal-{pageTag}-det-fig6", "is_open"),
+        [Input(f"btn-{pageTag}-det-fig6", "n_clicks"),
+         Input(f"close-modal-{pageTag}-det-fig6", "n_clicks")],
+        [State(f"modal-{pageTag}-det-fig6", "is_open")],
+        prevent_initial_call=True
+    )
+    def toggle_modal_6(n_open, n_close, is_open):
+        if n_open or n_close:
+            return not is_open
+        return is_open
+    
+    @app.callback(
+        Output(f"modal-{pageTag}-det-fig7", "is_open"),
+        [Input(f"btn-{pageTag}-det-fig7", "n_clicks"),
+         Input(f"close-modal-{pageTag}-det-fig7", "n_clicks")],
+        [State(f"modal-{pageTag}-det-fig7", "is_open")],
+        prevent_initial_call=True
+    )
+    def toggle_modal_7(n_open, n_close, is_open):
+        if n_open or n_close:
+            return not is_open
+        return is_open
 
     # Callbacks para conteúdo dos modais
     @app.callback(
