@@ -1,18 +1,20 @@
 """
 pages/cta_express/estoque/estoque_graficos.py
-Módulo responsável pela criação de gráficos do estoque
+Módulo responsável pela criação de gráficos do estoque seguindo padrão do projeto
 """
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from assets.static import Colors, Graphcs
+from assets.static import packCode, Colors, Graphcs
 from stylesDocs.style import styleConfig
 from utils import conversores
 from .estoque_data import EstoqueColumns
 
-# Configurações de estilo seguindo padrão do projeto
+# Configurações seguindo padrão do projeto
+pageTag = "CEestoque_"
 styleColors = styleConfig(Colors.themecolor)
+pxGraficos = Graphcs.pxGraficos
 globalTemplate = Graphcs.globalTemplate
 
 def criar_figura_vazia(titulo="Sem dados para exibir", height=None):
@@ -23,13 +25,13 @@ def criar_figura_vazia(titulo="Sem dados para exibir", height=None):
         title_x=0.5,
         xaxis={"visible": False},
         yaxis={"visible": False},
-        paper_bgcolor=styleColors.back_pri_color,
-        plot_bgcolor=styleColors.back_pri_color,
-        font={"color": styleColors.text_color},
+        template=globalTemplate,
         annotations=[{
             "text": titulo, 
             "xref": "paper", 
             "yref": "paper",
+            "x": 0.5,
+            "y": 0.5,
             "showarrow": False, 
             "font": {"size": 16, "color": styleColors.text_color}
         }]
@@ -54,7 +56,7 @@ def criar_grafico_estoque_por_grupo(df):
     if df_agrupado.empty:
         return criar_figura_vazia("Volume de Estoque por Grupo (Sem Estoque > 0)")
 
-    # Tentar ordenar numericamente seguindo padrão do projeto
+    # Ordenar seguindo padrão do projeto
     try:
         df_agrupado['OrdemNumerica'] = df_agrupado[EstoqueColumns.GRUPO].str.extract(r'^(\d+)').astype(float)
         df_agrupado = df_agrupado.sort_values(by='OrdemNumerica', ascending=True)
@@ -66,7 +68,12 @@ def criar_grafico_estoque_por_grupo(df):
         conversores.abreviar
     )
     
-    fig = px.line(
+    # Formatar valores para hover
+    df_agrupado["Estoque_Formatado"] = df_agrupado[EstoqueColumns.ESTOQUE].apply(
+        conversores.MetricInteiroValores
+    )
+    
+    figDash1 = px.line(
         df_agrupado, 
         x=EstoqueColumns.GRUPO, 
         y=EstoqueColumns.ESTOQUE, 
@@ -76,30 +83,32 @@ def criar_grafico_estoque_por_grupo(df):
             EstoqueColumns.ESTOQUE: 'Quantidade Total em Estoque', 
             EstoqueColumns.GRUPO: 'Grupo'
         },
-        height=450  # Altura maior
+        hover_data={
+            "Estoque_Formatado": True,
+            EstoqueColumns.ESTOQUE: False,
+            EstoqueColumns.GRUPO: True,
+        },
+        height=pxGraficos + 100,
+        color_discrete_sequence=globalTemplate["colorway"],
+        line_shape="spline"
     )
     
-    # Aplicar cores alaranjadas seguindo padrão do projeto
-    fig.update_traces(
-        line=dict(width=3, shape='spline', color='#FF7F0E'),  # Laranja mais forte
-        marker=dict(size=10, symbol='circle', color='#FF4500'),  # Markers alaranjados
+    figDash1.update_traces(
+        line=dict(width=3),
+        marker=dict(size=8),
         fill='tozeroy',
-        fillcolor='rgba(255, 127, 14, 0.2)'  # Preenchimento alaranjado
+        fillcolor='rgba(244, 124, 32, 0.2)'
     )
     
-    fig.update_layout(globalTemplate)
-    fig.update_layout(
+    figDash1.update_layout(globalTemplate)
+    figDash1.update_layout(
         title_x=0.5,
-        title_font_size=16,
         xaxis_title="Grupos de Produto",
         yaxis_title="Quantidade Total em Estoque",
-        showlegend=False,
-        margin=dict(l=60, r=30, t=60, b=60)  # Margens balanceadas
+        showlegend=False
     )
     
-    return fig
-
-
+    return figDash1
 
 def criar_grafico_top_produtos_estoque(df, n=7, height=None):
     """Cria gráfico top produtos por estoque seguindo padrão do projeto."""
@@ -130,20 +139,27 @@ def criar_grafico_top_produtos_estoque(df, n=7, height=None):
         lambda x: conversores.abreviar(x, 25)
     )
     
-    data_para_pie = [
-        {'NomeExibicao': row['NomeExibicao'], 'Estoque': row[EstoqueColumns.ESTOQUE]} 
-        for _, row in top_n_df.iterrows()
-    ]
+    data_para_pie = []
+    for _, row in top_n_df.iterrows():
+        data_para_pie.append({
+            'NomeExibicao': row['NomeExibicao'], 
+            'Estoque': row[EstoqueColumns.ESTOQUE],
+            'Estoque_Formatado': conversores.MetricInteiroValores(row[EstoqueColumns.ESTOQUE])
+        })
     
     if estoque_outros > 0.001:
-        data_para_pie.append({'NomeExibicao': 'Outros Produtos', 'Estoque': estoque_outros})
+        data_para_pie.append({
+            'NomeExibicao': 'Outros Produtos', 
+            'Estoque': estoque_outros,
+            'Estoque_Formatado': conversores.MetricInteiroValores(estoque_outros)
+        })
     
     if not data_para_pie:
         return criar_figura_vazia(f"Top {n} Produtos por Estoque (Sem dados para gráfico)", height=height)
         
     df_pie = pd.DataFrame(data_para_pie)
     
-    # Usar cores alaranjadas para compatibilidade com o tema
+    # CORREÇÃO 3: Usar cores alaranjadas para o top produtos
     cores_alaranjadas = [
         '#FF7F0E',  # Laranja principal
         '#FF4500',  # Laranja vermelho
@@ -152,47 +168,39 @@ def criar_grafico_top_produtos_estoque(df, n=7, height=None):
         '#FFA500',  # Laranja médio
         '#FF6347',  # Tomate
         '#FF9500',  # Laranja vibrante
-        '#D3D3D3',  # Cinza para "Outros"
+        '#D2691E',  # Chocolate
+        '#CD853F'   # Peru
     ]
         
-    fig = px.pie(
+    figDash2 = px.pie(
         df_pie, 
         values='Estoque', 
         names='NomeExibicao', 
         title=f'Top {n} Produtos com Maior Estoque', 
-        hole=.4,  # Donut
+        hole=.4,
         labels={'Estoque': 'Quantidade em Estoque', 'NomeExibicao': 'Produto'},
-        color_discrete_sequence=cores_alaranjadas
+        hover_data={
+            "Estoque_Formatado": True,
+            "Estoque": False,
+        },
+        color_discrete_sequence=cores_alaranjadas,
+        height=height if height else pxGraficos
     )
     
-    fig.update_traces(
+    figDash2.update_traces(
         textposition='outside', 
         textinfo='percent+label',
-        textfont=dict(size=10, color='black'),
-        marker=dict(line=dict(color='white', width=2)),
+        textfont=dict(size=10, color="black"),
         pull=[0.05 if nome != 'Outros Produtos' else 0 for nome in df_pie['NomeExibicao']]
     )
     
-    fig.update_layout(globalTemplate)
-    fig.update_layout(
+    figDash2.update_layout(globalTemplate)
+    figDash2.update_layout(
         title_x=0.5,
-        title_font_size=16,
-        height=height if height else 450,  # Altura maior
-        showlegend=True,
-        legend=dict(
-            orientation="v",
-            yanchor="middle",
-            y=0.5,
-            xanchor="left",
-            x=1.05,
-            font=dict(size=9)
-        ),
-        margin=dict(l=30, r=120, t=60, b=30)  # Mais espaço para legenda
+        showlegend=False
     )
     
-    return fig
-
-
+    return figDash2
 
 def criar_grafico_niveis_estoque(df, limite_baixo=10, limite_medio=100, height=None):
     """Cria gráfico de níveis de estoque seguindo padrão do projeto."""
@@ -207,7 +215,7 @@ def criar_grafico_niveis_estoque(df, limite_baixo=10, limite_medio=100, height=N
             lim_b = float(limite_baixo)
             lim_m = float(limite_medio)
         except (ValueError, TypeError):
-            return 'Desconhecido (Limites Inválidos)'
+            return 'Desconhecido'
         if pd.isna(estoque_val):
             return 'Desconhecido'
         try:
@@ -231,43 +239,46 @@ def criar_grafico_niveis_estoque(df, limite_baixo=10, limite_medio=100, height=N
     if contagem_niveis.empty or contagem_niveis['Contagem'].sum() == 0:
         return criar_figura_vazia("Níveis de Estoque (Sem Produtos para Classificar)", height=height)
 
-    # Definir cores alaranjadas seguindo padrão do projeto
+    # Formatar valores seguindo padrão do projeto
+    contagem_niveis["Contagem_Formatada"] = contagem_niveis['Contagem'].apply(
+        conversores.MetricInteiroValores
+    )
+
+    # CORREÇÃO 1: Cores diferenciadas em tons de laranja para cada nível
     mapa_cores = {
-        f'Baixo (≤{float(limite_baixo):g})': '#FF4500',    # Vermelho alaranjado
-        f'Médio ({float(limite_baixo):g} < E ≤ {float(limite_medio):g})': '#FF7F0E',  # Laranja principal
-        f'Alto (>{float(limite_medio):g})': '#FFB347',     # Laranja claro
-        'Desconhecido': '#D3D3D3',
-        'Desconhecido (Limites Inválidos)': '#A9A9A9'
+        f'Baixo (≤{float(limite_baixo):g})': '#FF4500',    # Laranja escuro/vermelho para baixo
+        f'Médio ({float(limite_baixo):g} < E ≤ {float(limite_medio):g})': '#FF7F0E',  # Laranja médio
+        f'Alto (>{float(limite_medio):g})': '#FFB347',     # Laranja claro para alto
+        'Desconhecido': '#D3D3D3'
     }
 
-    fig = px.bar(
+    figDash3 = px.bar(
         contagem_niveis, 
         x='NivelEstoque', 
         y='Contagem', 
         title='Produtos por Nível de Estoque',
         labels={'Contagem': 'Nº de Produtos', 'NivelEstoque': 'Nível de Estoque'},
+        text="Contagem_Formatada",
+        hover_data={
+            "Contagem_Formatada": True,
+            "Contagem": False,
+        },
         color='NivelEstoque',
         color_discrete_map=mapa_cores,
-        text='Contagem'
+        height=height if height else pxGraficos
     )
     
-    fig.update_traces(
-        textposition='outside',
-        textfont=dict(size=12, color='black')
-    )
-    fig.update_layout(globalTemplate)
-    fig.update_layout(
+    figDash3.update_traces(textposition='outside')
+    figDash3.update_layout(globalTemplate)
+    figDash3.update_layout(
         showlegend=False,
         title_x=0.5,
-        title_font_size=16,
         xaxis_title=None,
         yaxis_title="Nº de Produtos",
-        height=height if height else 450,  # Altura maior
-        xaxis=dict(tickangle=0),  # Labels retas para melhor legibilidade
-        margin=dict(l=60, r=30, t=60, b=60)  # Margens balanceadas
+        xaxis=dict(tickangle=0)
     )
     
-    return fig
+    return figDash3
 
 def criar_grafico_categorias_estoque_baixo(df_estoque_baixo, top_n=10):
     """Cria gráfico de categorias com estoque baixo seguindo padrão do projeto."""
@@ -294,12 +305,15 @@ def criar_grafico_categorias_estoque_baixo(df_estoque_baixo, top_n=10):
         by='NumeroDeProdutosBaixos', ascending=True
     )
     
-    # Aplicar abreviação seguindo padrão do projeto
+    # Aplicar abreviação e formatação seguindo padrão do projeto
     contagem_categorias_top_n[EstoqueColumns.CATEGORIA] = (
         contagem_categorias_top_n[EstoqueColumns.CATEGORIA].apply(conversores.abreviar)
     )
+    contagem_categorias_top_n["Produtos_Formatado"] = (
+        contagem_categorias_top_n['NumeroDeProdutosBaixos'].apply(conversores.MetricInteiroValores)
+    )
 
-    fig = px.bar(
+    figDash4 = px.bar(
         contagem_categorias_top_n, 
         y=EstoqueColumns.CATEGORIA, 
         x='NumeroDeProdutosBaixos', 
@@ -309,18 +323,22 @@ def criar_grafico_categorias_estoque_baixo(df_estoque_baixo, top_n=10):
             'NumeroDeProdutosBaixos': 'Nº de Produtos Baixos', 
             EstoqueColumns.CATEGORIA: 'Categoria'
         },
-        color_discrete_sequence=[Graphcs.defaultColor]
+        text="Produtos_Formatado",
+        hover_data={
+            "Produtos_Formatado": True,
+            "NumeroDeProdutosBaixos": False,
+        },
+        color_discrete_sequence=globalTemplate["colorway"],
+        height=pxGraficos
     )
     
-    fig.update_traces(textposition='outside')
-    fig.update_layout(globalTemplate)
-    fig.update_layout(
-        title_x=0.5,
-        height=Graphcs.pxGraficos
+    figDash4.update_traces(textposition='outside')
+    figDash4.update_layout(globalTemplate)
+    figDash4.update_layout(
+        title_x=0.5
     )
     
-    return fig
-
+    return figDash4
 
 def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
     """Cria gráfico de estoque vs venda dos produtos populares seguindo padrão do projeto."""
@@ -338,7 +356,7 @@ def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
         df_plot[EstoqueColumns.ESTOQUE], errors='coerce'
     ).fillna(0)
 
-    # Agrupar por produto para evitar duplicatas e somar os valores
+    # Agrupar por produto para evitar duplicatas
     df_agrupado = df_plot.groupby(EstoqueColumns.PRODUTO).agg({
         'VendaMensalNum': 'sum',
         'EstoqueNum': 'sum'
@@ -350,7 +368,11 @@ def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
         return criar_figura_vazia(f"Venda vs. Estoque dos Top {n} Produtos (Sem produtos com vendas)")
 
     produtos_populares_df = produtos_populares_df.sort_values(by='VendaMensalNum', ascending=False)
+    
+    # Resetar índice para garantir ordem consistente
+    produtos_populares_df = produtos_populares_df.reset_index(drop=True)
 
+    # Aplicar abreviação seguindo padrão do projeto
     if abreviar_nomes:
         x_axis_values = produtos_populares_df[EstoqueColumns.PRODUTO].apply(
             lambda x: conversores.abreviar(x, 10)
@@ -359,28 +381,55 @@ def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
         x_axis_values = produtos_populares_df[EstoqueColumns.PRODUTO].apply(
             lambda x: conversores.abreviar(x, 15)
         )
+    
+    # CORREÇÃO: Verificar e corrigir nomes duplicados após abreviação
+    x_axis_values = x_axis_values.tolist()
+    valores_unicos = []
+    contadores = {}
+    
+    for i, valor in enumerate(x_axis_values):
+        if valor in contadores:
+            contadores[valor] += 1
+            # Adiciona um sufixo numérico para tornar único
+            valor_unico = f"{valor} ({contadores[valor]})"
+        else:
+            contadores[valor] = 0
+            valor_unico = valor
+        valores_unicos.append(valor_unico)
+    
+    x_axis_values = valores_unicos
 
-    cor_estoque = Graphcs.defaultColor
-    cor_vendas = '#DC3545'
+    # Formatar valores para hover
+    produtos_populares_df["Estoque_Formatado"] = produtos_populares_df['EstoqueNum'].apply(
+        conversores.MetricInteiroValores
+    )
+    produtos_populares_df["Vendas_Formatado"] = produtos_populares_df['VendaMensalNum'].apply(
+        conversores.MetricInteiroValores
+    )
 
-    trace_estoque = go.Bar(
+    figDash5 = go.Figure()
+
+    # IMPORTANTE: Converter para lista para garantir alinhamento correto
+    figDash5.add_trace(go.Bar(
         name='Estoque',
-        x=x_axis_values,
-        y=produtos_populares_df['EstoqueNum'],
-        marker_color=cor_estoque
-    )
+        x=x_axis_values,  # Já é uma lista
+        y=produtos_populares_df['EstoqueNum'].tolist(),  # Converter para lista
+        marker_color=globalTemplate["colorway"][0],
+        customdata=produtos_populares_df["Estoque_Formatado"].tolist(),  # Converter para lista
+        hovertemplate="<b>Estoque</b><br>Quantidade: %{customdata}<extra></extra>"
+    ))
 
-    trace_vendas = go.Bar(
+    figDash5.add_trace(go.Bar(
         name='Vendas no Mês',
-        x=x_axis_values,
-        y=produtos_populares_df['VendaMensalNum'],
-        marker_color=cor_vendas
-    )
+        x=x_axis_values,  # Já é uma lista
+        y=produtos_populares_df['VendaMensalNum'].tolist(),  # Converter para lista
+        marker_color='#DC3545',
+        customdata=produtos_populares_df["Vendas_Formatado"].tolist(),  # Converter para lista
+        hovertemplate="<b>Vendas no Mês</b><br>Quantidade: %{customdata}<extra></extra>"
+    ))
 
-    fig = go.Figure(data=[trace_estoque, trace_vendas])
-
-    fig.update_layout(globalTemplate)
-    fig.update_layout(
+    figDash5.update_layout(globalTemplate)
+    figDash5.update_layout(
         barmode='group',
         bargap=0.15,
         bargroupgap=0.1,
@@ -389,7 +438,7 @@ def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
         xaxis_title=None,
         yaxis_title="Quantidade",
         showlegend=True,
-        height=500,
+        height=pxGraficos + 100,
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -397,7 +446,6 @@ def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
             xanchor="center",
             x=0.5
         ),
-        margin=dict(l=50, r=30, t=50, b=150),
         xaxis=dict(
             tickangle=45,
             tickmode='linear',
@@ -405,66 +453,75 @@ def criar_grafico_estoque_produtos_populares(df, n=7, abreviar_nomes=False):
         )
     )
 
-    return fig
-
+    return figDash5
 
 def criar_grafico_treemap_estoque_grupo(df_filtrado):
     """Cria treemap de estoque por grupo seguindo padrão do projeto."""
     titulo_grafico = "Estoque por Grupo (Treemap)"
-    nova_altura_grafico = 450
+    nova_altura_grafico = pxGraficos + 100
 
     if (df_filtrado.empty or 
         EstoqueColumns.GRUPO not in df_filtrado.columns or 
         EstoqueColumns.ESTOQUE not in df_filtrado.columns):
         return criar_figura_vazia(f"{titulo_grafico} - Sem dados", nova_altura_grafico)
 
-    df_filtrado = df_filtrado.copy()
-    df_filtrado[EstoqueColumns.ESTOQUE] = pd.to_numeric(
-        df_filtrado[EstoqueColumns.ESTOQUE], errors='coerce'
+    df_filtrado_copy = df_filtrado.copy()
+    df_filtrado_copy[EstoqueColumns.ESTOQUE] = pd.to_numeric(
+        df_filtrado_copy[EstoqueColumns.ESTOQUE], errors='coerce'
     ).fillna(0)
-    df_para_treemap = df_filtrado[df_filtrado[EstoqueColumns.ESTOQUE] > 0].copy()
+    
+    # CORREÇÃO 4: Agrupar corretamente por grupo antes de criar o treemap
+    df_agrupado = df_filtrado_copy.groupby(EstoqueColumns.GRUPO, as_index=False)[EstoqueColumns.ESTOQUE].sum()
+    df_para_treemap = df_agrupado[df_agrupado[EstoqueColumns.ESTOQUE] > 0].copy()
 
     if df_para_treemap.empty:
         return criar_figura_vazia(f"{titulo_grafico} - Sem dados positivos", nova_altura_grafico)
 
+    # Limpar o nome do grupo removendo números iniciais
     df_para_treemap['NomeGrupo'] = df_para_treemap[EstoqueColumns.GRUPO].str.replace(
         r'^\d+\s*', '', regex=True
     )
+    
+    # Formatar valores para hover seguindo padrão do projeto
+    df_para_treemap['Estoque_Formatado'] = df_para_treemap[EstoqueColumns.ESTOQUE].apply(
+        conversores.MetricInteiroValores
+    )
 
-    fig = px.treemap(
+    # Ordenar por estoque para garantir consistência
+    df_para_treemap = df_para_treemap.sort_values(EstoqueColumns.ESTOQUE, ascending=False)
+
+    figDash6 = px.treemap(
         df_para_treemap, 
         path=[px.Constant("Todos os Grupos"), 'NomeGrupo'], 
         values=EstoqueColumns.ESTOQUE, 
         title=titulo_grafico,
         color=EstoqueColumns.ESTOQUE,
         color_continuous_scale=Colors.ORANGE_COLORS,
-        custom_data=['NomeGrupo', EstoqueColumns.ESTOQUE]
+        custom_data=['NomeGrupo', 'Estoque_Formatado', EstoqueColumns.ESTOQUE]
     )
     
-    fig.update_traces(
+    figDash6.update_traces(
         textinfo='label + percent root',
-        hovertemplate='<b>%{customdata[0]}</b><br>Estoque: %{customdata[1]:,.0f}<extra></extra>',
+        hovertemplate='<b>%{customdata[0]}</b><br>Estoque: %{customdata[1]}<br>Valor Real: %{customdata[2]:,.0f}<extra></extra>',
         textposition='middle center',
         textfont=dict(family="Arial Black, sans-serif", size=11, color="black"),
         marker_line_width=1,
         marker_line_color='rgba(255,255,255,0.5)'
     )
     
-    fig.update_layout(
+    figDash6.update_layout(globalTemplate)
+    figDash6.update_layout(
         height=nova_altura_grafico,
-        paper_bgcolor=styleColors.back_pri_color,
-        plot_bgcolor=styleColors.back_pri_color,
-        font_color=styleColors.text_color,
         title_font_size=18,
         title_x=0.5
     )
     
-    return fig
+    return figDash6
 
 def criar_grafico_produtos_sem_venda_grupo(df):
     """Cria treemap dos produtos sem venda agrupados por grupo seguindo padrão do projeto."""
     titulo_grafico = "Produtos Sem Venda por Grupo"
-    nova_altura_grafico = 450
+    nova_altura_grafico = pxGraficos + 50
 
     if (df.empty or 
         EstoqueColumns.GRUPO not in df.columns or 
@@ -499,34 +556,39 @@ def criar_grafico_produtos_sem_venda_grupo(df):
     df_agrupado['NomeGrupo'] = df_agrupado[EstoqueColumns.GRUPO].str.replace(
         r'^\d+\s*', '', regex=True
     )
+    
+    # Formatar valores para hover seguindo padrão do projeto
+    df_agrupado['Produtos_Formatado'] = df_agrupado['QtdProdutosSemVenda'].apply(
+        conversores.MetricInteiroValores
+    )
+    df_agrupado['EstoqueParado_Formatado'] = df_agrupado['EstoqueParado'].apply(
+        conversores.MetricInteiroValores
+    )
 
-    # Usar a quantidade de produtos sem venda como valor do treemap
-    fig = px.treemap(
+    figDash7 = px.treemap(
         df_agrupado, 
         path=[px.Constant("Todos os Grupos"), 'NomeGrupo'], 
         values='QtdProdutosSemVenda', 
         title=titulo_grafico,
         color='EstoqueParado',
         color_continuous_scale=px.colors.sequential.Reds,
-        custom_data=['NomeGrupo', 'QtdProdutosSemVenda', 'EstoqueParado']
+        custom_data=['NomeGrupo', 'Produtos_Formatado', 'EstoqueParado_Formatado']
     )
     
-    fig.update_traces(
+    figDash7.update_traces(
         textinfo='label + value',
-        hovertemplate='<b>%{customdata[0]}</b><br>Produtos sem venda: %{customdata[1]}<br>Estoque parado: %{customdata[2]:,.0f}<extra></extra>',
+        hovertemplate='<b>%{customdata[0]}</b><br>Produtos sem venda: %{customdata[1]}<br>Estoque parado: %{customdata[2]}<extra></extra>',
         textposition='middle center',
         textfont=dict(family="Arial Black, sans-serif", size=11, color="black"),
         marker_line_width=1,
         marker_line_color='rgba(255,255,255,0.5)'
     )
     
-    fig.update_layout(
+    figDash7.update_layout(globalTemplate)
+    figDash7.update_layout(
         height=nova_altura_grafico,
-        paper_bgcolor=styleColors.back_pri_color,
-        plot_bgcolor=styleColors.back_pri_color,
-        font_color=styleColors.text_color,
         title_font_size=18,
         title_x=0.5
     )
     
-    return fig
+    return figDash7

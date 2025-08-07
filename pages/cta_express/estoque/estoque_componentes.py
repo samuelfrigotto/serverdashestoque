@@ -1,6 +1,6 @@
 """
 pages/cta_express/estoque/estoque_componentes.py
-Módulo responsável pelos componentes da interface do estoque
+Módulo responsável pelos componentes da interface do estoque seguindo padrão do projeto
 """
 import pandas as pd
 import dash_bootstrap_components as dbc
@@ -9,6 +9,8 @@ from assets.static import packCode, supportClass
 from utils import conversores
 from .estoque_data import EstoqueColumns, carregar_definicoes_niveis_estoque, carregar_configuracoes_exclusao
 from .estoque_analise import calcular_metricas_header, preparar_opcoes_exclusao
+pageTag = "CEestoque_"
+
 
 def criar_cabecalho_estoque(df_completo):
     """Cria cabeçalho do estoque seguindo padrão do projeto."""
@@ -19,55 +21,34 @@ def criar_cabecalho_estoque(df_completo):
             "Categorias": {"icone": "bi bi-tags-fill", "valor": "0"},
             "Grupos": {"icone": "bi bi-diagram-3-fill", "valor": "0"},
         }
+        filtros_vazios = {}
     else:
         metricsDict = calcular_metricas_header(df_completo)
+        
+        # Criar filtros seguindo padrão do projeto
+        filtros_vazios = {
+            f"{pageTag}fil_grupo": {
+                "distValue": df_completo[EstoqueColumns.GRUPO].unique(),
+                "labelName": "Grupo",
+                "valueDefault": "Todos",
+            },
+            f"{pageTag}fil_categoria": {
+                "distValue": df_completo[EstoqueColumns.CATEGORIA].unique(),
+                "labelName": "Categoria", 
+                "valueDefault": "Todos",
+            },
+        }
 
-    # Criar header customizado com botões de filtros e configurações
-    return dbc.Row([
-        dbc.Card([
-            dbc.CardHeader([
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Row(
-                            html.H3("Controle de Estoque", style={"fontSize": "24px"}),
-                            class_name="p-0 g-0 m-0",
-                        ),
-                        dbc.Row(html.Hr()),
-                        dbc.Row(
-                            html.H6("Dados atualizados conforme filtros aplicados", style={"fontSize": "15px"}),
-                            class_name="p-0 g-0 m-0",
-                        ),
-                    ], align="center", width=3),
-                    dbc.Col(
-                        dbc.Row(
-                            supportClass.dictHeaderDash("CEestoque_", metricsDict),
-                            id="CEestoque_metrics",
-                        ),
-                        width=8,
-                    ),
-                    dbc.Col([
-                        dbc.ButtonGroup([
-                            dbc.Button(
-                                [html.I(className="bi bi-funnel-fill me-1"), "Filtros"],
-                                id="CEestoque_btn-toggle-painel-esquerdo",
-                                color="primary",
-                                size="sm",
-                                className="shadow-sm"
-                            ),
-                            dbc.Button(
-                                [html.I(className="bi bi-gear-fill me-1"), "Config"],
-                                id="CEestoque_btn-abrir-modal-config",
-                                color="secondary",
-                                size="sm",
-                                className="shadow-sm"
-                            ),
-                        ], vertical=True, className="w-100")
-                    ], align="center", width=1),
-                ])
-            ])
-        ], class_name="g-0"),
-    ], class_name="g-0")
-
+    return packCode.HeaderDash(
+        "Controle de Estoque",
+        "Dados atualizados conforme filtros aplicados",
+        pageTag,
+        metricsDict,
+        True,
+        filtros_vazios,
+        4,
+        7,
+    )
 
 def criar_painel_filtros(df_completo):
     """Cria painel de filtros seguindo padrão do projeto."""
@@ -92,7 +73,8 @@ def criar_painel_filtros(df_completo):
                 options=opcoes_grupo, 
                 value=None, 
                 multi=False, 
-                placeholder="Todos os Grupos"
+                placeholder="Todos os Grupos",
+                clearable=True  # CORREÇÃO: Permitir limpar seleção
             )
         ], className="mb-3"),
         html.Div([
@@ -102,7 +84,8 @@ def criar_painel_filtros(df_completo):
                 options=opcoes_categoria, 
                 value=None, 
                 multi=False, 
-                placeholder="Todas as Categorias"
+                placeholder="Todas as Categorias",
+                clearable=True  # CORREÇÃO: Permitir limpar seleção
             )
         ], className="mb-3"),
         html.Div([
@@ -112,7 +95,8 @@ def criar_painel_filtros(df_completo):
                 type='text', 
                 placeholder='Buscar por nome...', 
                 debounce=True, 
-                className="form-control"
+                className="form-control",
+                value=""  # CORREÇÃO: Valor inicial vazio
             )
         ], className="mb-3"),
         dbc.Button(
@@ -120,7 +104,8 @@ def criar_painel_filtros(df_completo):
             id="CEestoque_btn-resetar-filtros", 
             color="warning", 
             outline=True, 
-            className="w-100 mb-4"
+            className="w-100 mb-4",
+            n_clicks=0  # CORREÇÃO: Inicializar com 0 cliques
         ),
     ])
 
@@ -132,9 +117,10 @@ def criar_offcanvas_filtros(df_completo):
         title="Filtros e Resumo",
         is_open=False,
         placement="start",
-        backdrop=False,
+        backdrop=False,  # CORREÇÃO: Sem backdrop para não interferir
         scrollable=True,
         style={'width': '350px'},
+        keyboard=True,  # CORREÇÃO: Permitir fechar com ESC
     )
 
 def criar_conteudo_configuracoes(df_completo_para_opcoes):
@@ -185,18 +171,21 @@ def criar_conteudo_configuracoes(df_completo_para_opcoes):
                 "Salvar Definições de Níveis", 
                 id="CEestoque_btn-salvar-config-niveis", 
                 color="primary", 
-                className="mt-2 mb-3"
+                className="mt-2 mb-3",
+                n_clicks=0  # CORREÇÃO: Inicializar com 0 cliques
             ),
             html.Div(id="CEestoque_div-status-config-niveis", className="mt-2"),
             html.Div([
                 html.H6("Definições de Níveis Atuais:", className="mt-3"),
                 dbc.Row([
                     dbc.Col(html.Strong("Limite Estoque Baixo (≤):"), width="auto", className="pe-0"), 
-                    dbc.Col(html.Span(id="CEestoque_span-config-atual-limite-baixo", children=str(valor_inicial_baixo)))
+                    dbc.Col(html.Span(id="CEestoque_span-config-atual-limite-baixo", 
+                                    children=conversores.MetricInteiroValores(valor_inicial_baixo)))
                 ]),
                 dbc.Row([
                     dbc.Col(html.Strong("Limite Estoque Médio (> Baixo e ≤):"), width="auto", className="pe-0"), 
-                    dbc.Col(html.Span(id="CEestoque_span-config-atual-limite-medio", children=str(valor_inicial_medio)))
+                    dbc.Col(html.Span(id="CEestoque_span-config-atual-limite-medio", 
+                                    children=conversores.MetricInteiroValores(valor_inicial_medio)))
                 ]),
             ], className="mt-3 p-3 border rounded bg-light")
         ])
@@ -237,7 +226,8 @@ def criar_conteudo_configuracoes(df_completo_para_opcoes):
                 "Salvar Exclusões", 
                 id="CEestoque_btn-salvar-exclusoes", 
                 color="danger", 
-                className="mt-3 mb-3"
+                className="mt-3 mb-3",
+                n_clicks=0  # CORREÇÃO: Inicializar com 0 cliques
             ),
             html.Div(id="CEestoque_div-status-salvar-exclusoes", className="mt-2"),
             html.Div([
@@ -284,7 +274,7 @@ def criar_modal_configuracoes(df_completo):
                 "Fechar", 
                 id="CEestoque_btn-fechar-modal-config", 
                 className="ms-auto", 
-                n_clicks=0, 
+                n_clicks=0,  # CORREÇÃO: Inicializar com 0 cliques
                 color="secondary"
             )
         ),
@@ -295,11 +285,24 @@ def criar_tabela_produtos_criticos(df_produtos, id_tabela, titulo_alerta, page_s
     if df_produtos.empty:
         return dbc.Alert(f"{titulo_alerta}: Nenhum produto encontrado.", color="info", className="mt-2")
 
+    # Formatar valores seguindo padrão do projeto
+    df_produtos_formatado = df_produtos.copy()
+    if EstoqueColumns.ESTOQUE in df_produtos_formatado.columns:
+        df_produtos_formatado[EstoqueColumns.ESTOQUE] = df_produtos_formatado[EstoqueColumns.ESTOQUE].apply(
+            conversores.MetricInteiroValores
+        )
+    
+    # Aplicar abreviação seguindo padrão do projeto
+    if EstoqueColumns.PRODUTO in df_produtos_formatado.columns:
+        df_produtos_formatado[EstoqueColumns.PRODUTO] = df_produtos_formatado[EstoqueColumns.PRODUTO].apply(
+            lambda x: conversores.abreviar(x, 30)
+        )
+
     colunas_para_dash = [
         {"name": "Produto", "id": EstoqueColumns.PRODUTO}, 
         {"name": "Estoque Atual", "id": EstoqueColumns.ESTOQUE}
     ]
-    dados_para_tabela = df_produtos[[EstoqueColumns.PRODUTO, EstoqueColumns.ESTOQUE]].to_dict('records')
+    dados_para_tabela = df_produtos_formatado[[EstoqueColumns.PRODUTO, EstoqueColumns.ESTOQUE]].to_dict('records')
     page_size_real = max(1, len(dados_para_tabela))
 
     return html.Div([
@@ -353,15 +356,6 @@ def criar_tabela_produtos_criticos(df_produtos, id_tabela, titulo_alerta, page_s
                 {
                     'if': {'row_index': 'odd'}, 
                     'backgroundColor': 'rgba(0,0,0,0.025)'
-                }, 
-                {
-                    'if': {
-                        'filter_query': f'{{{EstoqueColumns.ESTOQUE}}} <= 0', 
-                        'column_id': EstoqueColumns.ESTOQUE
-                    }, 
-                    'backgroundColor': 'rgba(220, 53, 69, 0.7)', 
-                    'color': 'white', 
-                    'fontWeight': 'bold'
                 }
             ]
         )
@@ -371,6 +365,27 @@ def criar_tabela_sugestao_compras(df_sugestao):
     """Cria tabela de sugestão de compras seguindo padrão do projeto."""
     if df_sugestao.empty:
         return dbc.Alert("Nenhuma sugestão de compra encontrada. Todos os produtos estão com estoque adequado.", color="success")
+    
+    # Formatar valores seguindo padrão do projeto
+    df_formatado = df_sugestao.copy()
+    if EstoqueColumns.ESTOQUE in df_formatado.columns:
+        df_formatado[EstoqueColumns.ESTOQUE] = df_formatado[EstoqueColumns.ESTOQUE].apply(
+            conversores.MetricInteiroValores
+        )
+    if EstoqueColumns.VENDA_MENSAL in df_formatado.columns:
+        df_formatado[EstoqueColumns.VENDA_MENSAL] = df_formatado[EstoqueColumns.VENDA_MENSAL].apply(
+            conversores.MetricInteiroValores
+        )
+    if EstoqueColumns.DIAS_ESTOQUE in df_formatado.columns:
+        df_formatado[EstoqueColumns.DIAS_ESTOQUE] = df_formatado[EstoqueColumns.DIAS_ESTOQUE].apply(
+            lambda x: f"{x:.1f}" if pd.notna(x) else "0.0"
+        )
+    
+    # Aplicar abreviação seguindo padrão do projeto
+    if EstoqueColumns.PRODUTO in df_formatado.columns:
+        df_formatado[EstoqueColumns.PRODUTO] = df_formatado[EstoqueColumns.PRODUTO].apply(
+            lambda x: conversores.abreviar(x, 40)
+        )
     
     # Contar produtos por prioridade para estatísticas
     stats_prioridade = df_sugestao['Prioridade'].value_counts()
@@ -382,9 +397,9 @@ def criar_tabela_sugestao_compras(df_sugestao):
         {"name": "Prioridade", "id": "Prioridade"},
         {"name": "Código", "id": EstoqueColumns.CODIGO},
         {"name": "Produto", "id": EstoqueColumns.PRODUTO},
-        {"name": "Estoque Atual", "id": EstoqueColumns.ESTOQUE, "type": "numeric"},
-        {"name": "Venda Mensal", "id": EstoqueColumns.VENDA_MENSAL, "type": "numeric"},
-        {"name": "Dias Estoque", "id": EstoqueColumns.DIAS_ESTOQUE, "type": "numeric"},
+        {"name": "Estoque Atual", "id": EstoqueColumns.ESTOQUE},
+        {"name": "Venda Mensal", "id": EstoqueColumns.VENDA_MENSAL},
+        {"name": "Dias Estoque", "id": EstoqueColumns.DIAS_ESTOQUE},
         {"name": "Sugestão Compra", "id": "Sugestão Compra"}
     ]
     
@@ -413,15 +428,6 @@ def criar_tabela_sugestao_compras(df_sugestao):
             {
                 'if': {'filter_query': '{Prioridade} = "Recomendado"'},
                 'backgroundColor': 'rgba(255, 193, 7, 0.15)'
-            },
-            {
-                'if': {'column_id': EstoqueColumns.DIAS_ESTOQUE, 'filter_query': f'{{{EstoqueColumns.DIAS_ESTOQUE}}} <= 7'},
-                'backgroundColor': 'rgba(220, 53, 69, 0.3)',
-                'fontWeight': 'bold'
-            },
-            {
-                'if': {'column_id': EstoqueColumns.DIAS_ESTOQUE, 'filter_query': f'{{{EstoqueColumns.DIAS_ESTOQUE}}} > 7 && {{{EstoqueColumns.DIAS_ESTOQUE}}} <= 30'},
-                'backgroundColor': 'rgba(255, 193, 7, 0.3)'
             }
         ]
     }
@@ -431,9 +437,12 @@ def criar_tabela_sugestao_compras(df_sugestao):
         
         dbc.Row([
             dbc.Col([
-                dbc.Badge(f"Forte Recomendação: {forte_rec}", color="danger", className="me-2"),
-                dbc.Badge(f"Recomendado: {recomendado}", color="warning", className="me-2"),
-                dbc.Badge(f"Monitorar: {monitorar}", color="info", className="me-2"),
+                dbc.Badge(f"Forte Recomendação: {conversores.MetricInteiroValores(forte_rec)}", 
+                         color="danger", className="me-2"),
+                dbc.Badge(f"Recomendado: {conversores.MetricInteiroValores(recomendado)}", 
+                         color="warning", className="me-2"),
+                dbc.Badge(f"Monitorar: {conversores.MetricInteiroValores(monitorar)}", 
+                         color="info", className="me-2"),
             ], className="mb-3")
         ]),
         
@@ -442,7 +451,7 @@ def criar_tabela_sugestao_compras(df_sugestao):
         dash_table.DataTable(
             id='CEestoque_tabela-sugestao-compras',
             columns=colunas,
-            data=df_sugestao.to_dict('records'),
+            data=df_formatado.to_dict('records'),
             page_size=20,
             filter_action='native',
             sort_action='native',
@@ -453,7 +462,7 @@ def criar_tabela_sugestao_compras(df_sugestao):
     ], className="mb-4")
 
 def criar_tabela_previsao_estoque_compacta(df, dias_maximos=60):
-    """Cria versão compacta da tabela de previsão de estoque."""
+    """Cria versão compacta da tabela de previsão de estoque seguindo padrão do projeto."""
     if (df is None or df.empty or 
         EstoqueColumns.DIAS_ESTOQUE not in df.columns or 
         EstoqueColumns.PRODUTO not in df.columns or 
@@ -478,15 +487,20 @@ def criar_tabela_previsao_estoque_compacta(df, dias_maximos=60):
     # Ordenar por dias de estoque crescente
     df_filtrado = df_filtrado.sort_values(EstoqueColumns.DIAS_ESTOQUE, ascending=True)
     
-    # Formatar colunas
+    # Formatar colunas seguindo padrão do projeto
     df_filtrado[EstoqueColumns.DIAS_ESTOQUE] = df_filtrado[EstoqueColumns.DIAS_ESTOQUE].round(1)
-    df_filtrado[EstoqueColumns.ESTOQUE] = df_filtrado[EstoqueColumns.ESTOQUE].round(0)
+    df_filtrado[EstoqueColumns.ESTOQUE] = df_filtrado[EstoqueColumns.ESTOQUE].apply(
+        conversores.MetricInteiroValores
+    )
+    df_filtrado[EstoqueColumns.PRODUTO] = df_filtrado[EstoqueColumns.PRODUTO].apply(
+        lambda x: conversores.abreviar(x, 25)
+    )
     
     # Criar tabela mais compacta
     colunas = [
         {"name": "Produto", "id": EstoqueColumns.PRODUTO},
         {"name": "Dias", "id": EstoqueColumns.DIAS_ESTOQUE, "type": "numeric"},
-        {"name": "Qtd", "id": EstoqueColumns.ESTOQUE, "type": "numeric"}
+        {"name": "Qtd", "id": EstoqueColumns.ESTOQUE}
     ]
     
     estilo_compacto = {
