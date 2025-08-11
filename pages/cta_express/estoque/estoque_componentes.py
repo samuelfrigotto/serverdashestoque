@@ -13,7 +13,7 @@ pageTag = "CEestoque_"
 
 
 def criar_cabecalho_estoque(df_completo):
-    """Cria cabeçalho do estoque seguindo padrão do projeto."""
+    """Cria cabeçalho do estoque seguindo padrão do projeto com filtros de exclusão."""
     if df_completo is None or df_completo.empty:
         metricsDict = {
             "Total de SKUs": {"icone": "bi bi-upc-scan", "valor": "0"},
@@ -21,34 +21,154 @@ def criar_cabecalho_estoque(df_completo):
             "Categorias": {"icone": "bi bi-tags-fill", "valor": "0"},
             "Grupos": {"icone": "bi bi-diagram-3-fill", "valor": "0"},
         }
-        filtros_vazios = {}
+        # CORREÇÃO: Filtros vazios mas com estrutura de exclusão
+        filters = {
+            f"{pageTag}fil_excluir_grupo": {
+                "distValue": [],
+                "labelName": "Excluir Grupos",
+                "valueDefault": "Nenhum",
+            },
+            f"{pageTag}fil_excluir_categoria": {
+                "distValue": [],
+                "labelName": "Excluir Categorias", 
+                "valueDefault": "Nenhuma",
+            },
+            f"{pageTag}fil_excluir_produto": {
+                "distValue": [],
+                "labelName": "Excluir Produtos",
+                "valueDefault": "Nenhum",
+            },
+            f"{pageTag}fil_limite_baixo": {
+                "distValue": [5, 10, 15, 20, 25, 30, 50],
+                "labelName": "Limite Estoque Baixo",
+                "valueDefault": "10",
+            },
+            f"{pageTag}fil_limite_medio": {
+                "distValue": [50, 75, 100, 120, 150, 200, 300],
+                "labelName": "Limite Estoque Médio", 
+                "valueDefault": "100",
+            },
+        }
     else:
         metricsDict = calcular_metricas_header(df_completo)
         
-        # Criar filtros seguindo padrão do projeto
-        filtros_vazios = {
-            f"{pageTag}fil_grupo": {
-                "distValue": df_completo[EstoqueColumns.GRUPO].unique(),
-                "labelName": "Grupo",
-                "valueDefault": "Todos",
-            },
-            f"{pageTag}fil_categoria": {
-                "distValue": df_completo[EstoqueColumns.CATEGORIA].unique(),
-                "labelName": "Categoria", 
-                "valueDefault": "Todos",
-            },
-        }
+        # CORREÇÃO: Carregar configurações atuais para incluir nos filtros
+        config_exclusao = carregar_configuracoes_exclusao()
+        config_niveis = carregar_definicoes_niveis_estoque()
+        
+        # Criar listas combinadas (dados + configurações)
+        todos_grupos = list(df_completo[EstoqueColumns.GRUPO].unique())
+        grupos_config = config_exclusao.get("excluir_grupos", [])
+        grupos_combined = sorted(list(set(todos_grupos + grupos_config)))
+        
+        todas_categorias = list(df_completo[EstoqueColumns.CATEGORIA].unique())
+        categorias_config = config_exclusao.get("excluir_categorias", [])
+        categorias_combined = sorted(list(set(todas_categorias + categorias_config)))
+        
+        todos_produtos = list(df_completo[EstoqueColumns.PRODUTO].unique())
+        produtos_config_codigos = config_exclusao.get("excluir_produtos_codigos", [])
+        # Buscar nomes dos produtos pelos códigos das configurações
+        produtos_config_nomes = []
+        for codigo in produtos_config_codigos:
+            produtos_com_codigo = df_completo[df_completo[EstoqueColumns.CODIGO] == str(codigo)]
+            if not produtos_com_codigo.empty:
+                produtos_config_nomes.extend(produtos_com_codigo[EstoqueColumns.PRODUTO].tolist())
+        
+        produtos_combined = sorted(list(set(todos_produtos + produtos_config_nomes)))
+        
+        # CORREÇÃO: Obter limites atuais das configurações para valores padrão
+        limite_baixo = config_niveis.get("limite_estoque_baixo", 10)
+        limite_medio = config_niveis.get("limite_estoque_medio", 100)
 
-    return packCode.HeaderDash(
+
+        # CORREÇÃO: Criar filtros de exclusão + definição de limites seguindo padrão do projeto
+        filters = {
+        f"{pageTag}fil_excluir_grupo": {
+            "distValue": grupos_combined,
+            "labelName": "Excluir Grupos",
+            "valueDefault": "Nenhum",
+        },
+        f"{pageTag}fil_excluir_categoria": {
+            "distValue": categorias_combined,
+            "labelName": "Excluir Categorias", 
+            "valueDefault": "Nenhuma",
+        },
+        f"{pageTag}fil_excluir_produto": {
+            "distValue": produtos_combined,
+            "labelName": "Excluir Produtos",
+            "valueDefault": "Nenhum",
+        },
+        # REMOVER os filtros de limite daqui
+    }
+    
+    # Criar HeaderDash normal
+    header_normal = packCode.HeaderDash(
         "Controle de Estoque",
-        "Dados atualizados conforme filtros aplicados",
+        "Use os filtros para EXCLUIR itens ou definir limites personalizados",
         pageTag,
         metricsDict,
         True,
-        filtros_vazios,
-        4,
-        7,
+        filters,
+        3,  # Só 3 colunas de filtros normais
+        6,
     )
+    
+    # ADICIONAR campos de input personalizados DEPOIS do HeaderDash
+    campos_personalizados = html.Div([
+        dbc.Row([
+            dbc.Col([
+                dbc.Label("Limite Estoque Baixo:", className="fw-bold text-primary"),
+                dbc.InputGroup([
+                    dcc.Input(
+                        id=f"{pageTag}input-limite-baixo-livre",
+                        type="number",
+                        min=0,
+                        step=1,
+                        value=limite_baixo,
+                        placeholder="Ex: 15",
+                        className="form-control",
+                        style={'maxWidth': '120px'}
+                    ),
+                    dbc.InputGroupText("unidades", className="bg-light")
+                ], size="sm")
+            ], width=3),
+            dbc.Col([
+                dbc.Label("Limite Estoque Médio:", className="fw-bold text-warning"),
+                dbc.InputGroup([
+                    dcc.Input(
+                        id=f"{pageTag}input-limite-medio-livre",
+                        type="number", 
+                        min=0,
+                        step=1,
+                        value=limite_medio,
+                        placeholder="Ex: 120",
+                        className="form-control",
+                        style={'maxWidth': '120px'}
+                    ),
+                    dbc.InputGroupText("unidades", className="bg-light")
+                ], size="sm")
+            ], width=3),
+            dbc.Col([
+                html.Div([
+                    html.Small("Estoque Alto: ", className="text-muted"),
+                    html.Strong(f"> {limite_medio}", id=f"{pageTag}texto-limite-alto", className="text-success")
+                ], className="mt-3")
+            ], width=3),
+            dbc.Col([
+                dbc.Button(
+                    [html.I(className="bi bi-arrow-clockwise me-1"), "Aplicar Limites"],
+                    id=f"{pageTag}btn-aplicar-limites",
+                    color="primary",
+                    size="sm",
+                    className="mt-3"
+                )
+            ], width=3)
+        ], className="g-2 p-3 bg-light rounded mb-3", align="center")
+    ])
+    
+    # Combinar HeaderDash + campos personalizados
+    return html.Div([header_normal, campos_personalizados])
+
 
 def criar_painel_filtros(df_completo):
     """Cria painel de filtros seguindo padrão do projeto."""

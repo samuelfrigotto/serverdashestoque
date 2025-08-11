@@ -5,8 +5,9 @@ import dash_bootstrap_components as dbc
 from dash import Input, Output, State, html, dcc, no_update, callback_context
 from app import app, session_dataframes_cta_express as sessionDF
 from dash_table import DataTable
-
-
+from utils import conversores
+from .estoque_data import aplicar_filtros_exclusao_header
+from .estoque_graficos import criar_figura_vazia
 
 # Importar módulos do estoque
 from .estoque_data import (
@@ -446,6 +447,82 @@ def register_callbacks(app):
         
         return header, body
     
+
+     # CORREÇÃO: Adicionar callback do collapse seguindo padrão dos outros componentes
+    @app.callback(
+        Output(f"{pageTag}collapse-filters", "is_open"),
+        Input(f"{pageTag}collapse-button", "n_clicks"),
+        State(f"{pageTag}collapse-filters", "is_open"),
+    )
+    def toggle_collapse(n_clicks, is_open):
+        if n_clicks:
+            return not is_open
+        return is_open
+    
+
+    @app.callback(
+        [Output(f"{pageTag}metrics", "children")],
+        [
+            Input(f"{pageTag}fil_excluir_grupo", "value"),
+            Input(f"{pageTag}fil_excluir_categoria", "value"), 
+            Input(f"{pageTag}fil_excluir_produto", "value"),
+            # NOVOS: inputs livres para limites
+            Input(f"{pageTag}input-limite-baixo-livre", "value"),
+            Input(f"{pageTag}input-limite-medio-livre", "value"),
+            Input(f"{pageTag}btn-aplicar-limites", "n_clicks"),
+        ],
+        [State(f"{pageTag}session_data", "data")]
+    )
+    def atualizar_metricas_completo(fil_excluir_grupos, fil_excluir_categorias, 
+                                   fil_excluir_produtos, limite_baixo_input, limite_medio_input,
+                                   btn_clicks, session_data):
+        """Atualiza métricas usando filtros de exclusão + inputs livres de limites."""
+        from assets.static import supportClass
+        
+        session_id = session_data.get("session_id", "estoque_default") if session_data else "estoque_default"
+        
+        if f"{session_id}_estoque" not in sessionDF:
+            return [html.Div()]
+        
+        df_estoque = sessionDF[f"{session_id}_estoque"]
+        
+        # Aplicar filtros de exclusão das configurações primeiro
+        config_exclusao = carregar_configuracoes_exclusao()
+        df_filtrado = aplicar_filtros_exclusao(df_estoque, config_exclusao)
+        
+        # Validar e usar inputs livres para limites
+        try:
+            limite_baixo = int(limite_baixo_input) if limite_baixo_input and limite_baixo_input > 0 else 10
+            limite_medio = int(limite_medio_input) if limite_medio_input and limite_medio_input > 0 else 100
+            
+            # Validação lógica: médio deve ser maior que baixo
+            if limite_medio <= limite_baixo:
+                limite_medio = limite_baixo + 10
+                
+        except (ValueError, TypeError):
+            limite_baixo, limite_medio = 10, 100
+        
+        # Aplicar filtros de exclusão do HeaderDash
+        df_filtrado = aplicar_filtros_exclusao_header(
+            df_filtrado, fil_excluir_grupos, fil_excluir_categorias,
+            fil_excluir_produtos, limite_baixo, limite_medio
+        )
+        
+        # Calcular métricas atualizadas
+        metricsDict = calcular_metricas_header(df_filtrado)
+        
+        return [supportClass.dictHeaderDash(pageTag, metricsDict)]
+    
+    # NOVO: Callback para atualizar texto limite alto dinamicamente
+    @app.callback(
+        Output(f"{pageTag}texto-limite-alto", "children"),
+        Input(f"{pageTag}input-limite-medio-livre", "value")
+    )
+    def atualizar_texto_limite_alto(limite_medio_input):
+        if limite_medio_input and limite_medio_input > 0:
+            return f"> {limite_medio_input}"
+        return "> 100"
+
     # Callback principal de atualização de gráficos
     @app.callback(
         [
@@ -461,6 +538,14 @@ def register_callbacks(app):
             Output(f'{pageTag}tabela-sugestao-compras-container', 'children'),
         ],
         [
+        
+            # CORREÇÃO: Filtros de exclusão + limites do HeaderDash
+            Input(f"{pageTag}fil_excluir_grupo", "value"),
+            Input(f"{pageTag}fil_excluir_categoria", "value"), 
+            Input(f"{pageTag}fil_excluir_produto", "value"),
+            Input(f"{pageTag}fil_limite_baixo", "value"),
+            Input(f"{pageTag}fil_limite_medio", "value"),
+            Input(f"{pageTag}btn-aplicar-limites", "n_clicks"),
             Input(f'{pageTag}dropdown-categoria-filtro', 'value'),
             Input(f'{pageTag}dropdown-grupo-filtro', 'value'),
             Input(f'{pageTag}input-nome-produto-filtro', 'value'),
@@ -472,10 +557,12 @@ def register_callbacks(app):
         ],
         [State(f"{pageTag}session_data", "data")]
     )
-    def atualizar_dashboard_filtrado(categoria_selecionada, grupo_selecionado, nome_produto_filtrado,
-                                    limite_baixo_str, limite_medio_str,
-                                    ignore_exc_grp, ignore_exc_cat, ignore_exc_prod,
-                                    session_data):
+    def atualizar_dashboard_filtrado(fil_excluir_grupos, fil_excluir_categorias, 
+                                            fil_excluir_produtos, limite_baixo_filtro, limite_medio_filtro,
+                                            categoria_selecionada, grupo_selecionado, nome_produto_filtrado,
+                                            limite_baixo_str, limite_medio_str,
+                                            ignore_exc_grp, ignore_exc_cat, ignore_exc_prod,
+                                            session_data):
         """Atualiza dashboard com filtros aplicados seguindo padrão do projeto."""
         
         # Obter dados da sessão
@@ -490,11 +577,17 @@ def register_callbacks(app):
 
         df_global_original = sessionDF[f"{session_id}_estoque"]
         
-        # Aplicar filtros de exclusão
+        # 1. Aplicar filtros de exclusão das configurações
         config_exclusao = carregar_configuracoes_exclusao()
         dff = aplicar_filtros_exclusao(df_global_original, config_exclusao)
         
-        # Aplicar filtros interativos
+        # 2. Aplicar filtros de exclusão do HeaderDash
+        dff = aplicar_filtros_exclusao_header(
+            dff, fil_excluir_grupos, fil_excluir_categorias,
+            fil_excluir_produtos, limite_baixo_filtro, limite_medio_filtro
+        )
+        
+        # 3. Aplicar filtros interativos adicionais (offcanvas) - esses mantêm lógica de inclusão
         dff_filtrado = aplicar_filtros_interativos(
             dff, 
             categoria_selecionada, 
@@ -503,16 +596,19 @@ def register_callbacks(app):
         )
         
         if dff_filtrado.empty:
-            from .estoque_graficos import criar_figura_vazia
-            fig_vazia = criar_figura_vazia("Sem dados com os filtros atuais")
+            fig_vazia = criar_figura_vazia("Nenhum produto restante após filtros")
             tabela_vazia = criar_tabela_produtos_criticos(pd.DataFrame(), 'tabela-vazia-filtros', "Estoque Baixo")
             return (fig_vazia, fig_vazia, tabela_vazia, fig_vazia, fig_vazia,
                     fig_vazia, fig_vazia, fig_vazia, fig_vazia, html.Div())
 
-        # Obter configurações de níveis
-        config_niveis = carregar_definicoes_niveis_estoque()
-        limite_baixo = config_niveis.get("limite_estoque_baixo", 10)
-        limite_medio = config_niveis.get("limite_estoque_medio", 100)
+        # Usar limites dos filtros (ou fallback para configurações)
+        try:
+            limite_baixo = int(limite_baixo_filtro) if limite_baixo_filtro else 10
+            limite_medio = int(limite_medio_filtro) if limite_medio_filtro else 100
+        except (ValueError, TypeError):
+            config_niveis = carregar_definicoes_niveis_estoque()
+            limite_baixo = config_niveis.get("limite_estoque_baixo", 10)
+            limite_medio = config_niveis.get("limite_estoque_medio", 100)
 
         # Criar gráficos
         fig_treemap = criar_grafico_treemap_estoque_grupo(dff_filtrado)

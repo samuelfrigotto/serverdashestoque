@@ -296,6 +296,7 @@ def aplicar_filtros_exclusao(df, config_exclusao):
     return dff
 
 def aplicar_filtros_interativos(df, categoria_sel=None, grupo_sel=None, produto_sel=None):
+    
     """Aplica filtros interativos no DataFrame."""
     if df is None or df.empty:
         return df
@@ -310,3 +311,30 @@ def aplicar_filtros_interativos(df, categoria_sel=None, grupo_sel=None, produto_
         dff_filtrado = dff_filtrado[dff_filtrado[EstoqueColumns.PRODUTO].str.contains(produto_sel, case=False, na=False)]
     
     return dff_filtrado
+
+
+
+def aplicar_filtros_exclusao_header(df, fil_excluir_grupos, fil_excluir_categorias, 
+                                   fil_excluir_produtos, limite_baixo_filtro, limite_medio_filtro):
+    """Aplica filtros de exclusão do HeaderDash no DataFrame."""
+    if df is None or df.empty:
+        return df
+    
+    dff = df.copy()
+    
+    # Excluir grupos selecionados
+    if fil_excluir_grupos and "Nenhum" not in fil_excluir_grupos and len(fil_excluir_grupos) > 0:
+        dff = dff[~dff[EstoqueColumns.GRUPO].isin(fil_excluir_grupos)]
+    
+    # Excluir categorias selecionadas
+    if fil_excluir_categorias and "Nenhuma" not in fil_excluir_categorias and len(fil_excluir_categorias) > 0:
+        dff = dff[~dff[EstoqueColumns.CATEGORIA].isin(fil_excluir_categorias)]
+    
+    # Excluir produtos selecionados
+    if fil_excluir_produtos and "Nenhum" not in fil_excluir_produtos and len(fil_excluir_produtos) > 0:
+        dff = dff[~dff[EstoqueColumns.PRODUTO].isin(fil_excluir_produtos)]
+    
+    # Os limites de estoque são apenas para definir classificações, não para excluir
+    # Eles serão usados nos gráficos e análises, mas não filtram dados aqui
+    
+    return dff
