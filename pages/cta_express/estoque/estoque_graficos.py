@@ -84,11 +84,11 @@ def criar_grafico_estoque_por_grupo(df):
             EstoqueColumns.GRUPO: 'Grupo'
         },
         hover_data={
-            "Estoque_Formatado": True,
+            "Estoque_Formatado": ":Estoque",
             EstoqueColumns.ESTOQUE: False,
             EstoqueColumns.GRUPO: True,
         },
-        height=pxGraficos + 100,
+        height=pxGraficos + 150,
         color_discrete_sequence=globalTemplate["colorway"],
         line_shape="spline"
     )
@@ -106,6 +106,12 @@ def criar_grafico_estoque_por_grupo(df):
         xaxis_title="Grupos de Produto",
         yaxis_title="Quantidade Total em Estoque",
         showlegend=False
+    )
+    
+    # Customizar hover template
+    figDash1.update_traces(
+        hovertemplate="<b>%{customdata[1]}</b><br>Estoque: %{customdata[0]}<extra></extra>",
+        customdata=df_agrupado[["Estoque_Formatado", EstoqueColumns.GRUPO]].values
     )
     
     return figDash1
@@ -180,7 +186,7 @@ def criar_grafico_top_produtos_estoque(df, n=7, height=None):
         hole=.4,
         labels={'Estoque': 'Quantidade em Estoque', 'NomeExibicao': 'Produto'},
         hover_data={
-            "Estoque_Formatado": True,
+            "Estoque_Formatado": ":Estoque",
             "Estoque": False,
         },
         color_discrete_sequence=cores_alaranjadas,
@@ -198,6 +204,12 @@ def criar_grafico_top_produtos_estoque(df, n=7, height=None):
     figDash2.update_layout(
         title_x=0.5,
         showlegend=False
+    )
+    
+    # Customizar hover template
+    figDash2.update_traces(
+        hovertemplate="<b>%{label}</b><br>Estoque: %{customdata[0]}<br>Percentual: %{percent}<extra></extra>",
+        customdata=df_pie[["Estoque_Formatado"]].values
     )
     
     return figDash2
@@ -244,11 +256,15 @@ def criar_grafico_niveis_estoque(df, limite_baixo=10, limite_medio=100, height=N
         conversores.MetricInteiroValores
     )
 
-    # CORREÇÃO 1: Cores diferenciadas em tons de laranja para cada nível
+    # CORREÇÃO 1: Cores diferenciadas em tons de laranja para cada nível com valores dinâmicos
+    baixo_label = f'Baixo (≤{float(limite_baixo):g})'
+    medio_label = f'Médio ({float(limite_baixo):g} < E ≤ {float(limite_medio):g})'
+    alto_label = f'Alto (>{float(limite_medio):g})'
+    
     mapa_cores = {
-        f'Baixo (≤{float(limite_baixo):g})': '#FF4500',    # Laranja escuro/vermelho para baixo
-        f'Médio ({float(limite_baixo):g} < E ≤ {float(limite_medio):g})': '#FF7F0E',  # Laranja médio
-        f'Alto (>{float(limite_medio):g})': '#FFB347',     # Laranja claro para alto
+        baixo_label: '#FF4500',    # Laranja escuro/vermelho para baixo
+        medio_label: '#FF7F0E',    # Laranja médio
+        alto_label: '#FFB347',     # Laranja claro para alto
         'Desconhecido': '#D3D3D3'
     }
 
@@ -260,7 +276,7 @@ def criar_grafico_niveis_estoque(df, limite_baixo=10, limite_medio=100, height=N
         labels={'Contagem': 'Nº de Produtos', 'NivelEstoque': 'Nível de Estoque'},
         text="Contagem_Formatada",
         hover_data={
-            "Contagem_Formatada": True,
+            "Contagem_Formatada": ":Contagem",
             "Contagem": False,
         },
         color='NivelEstoque',
@@ -276,6 +292,12 @@ def criar_grafico_niveis_estoque(df, limite_baixo=10, limite_medio=100, height=N
         xaxis_title=None,
         yaxis_title="Nº de Produtos",
         xaxis=dict(tickangle=0)
+    )
+    
+    # Customizar hover template
+    figDash3.update_traces(
+        hovertemplate="<b>%{x}</b><br>Contagem: %{customdata[0]}<extra></extra>",
+        customdata=contagem_niveis[["Contagem_Formatada"]].values
     )
     
     return figDash3
@@ -325,17 +347,23 @@ def criar_grafico_categorias_estoque_baixo(df_estoque_baixo, top_n=10):
         },
         text="Produtos_Formatado",
         hover_data={
-            "Produtos_Formatado": True,
+            "Produtos_Formatado": ":Produtos",
             "NumeroDeProdutosBaixos": False,
         },
         color_discrete_sequence=globalTemplate["colorway"],
-        height=pxGraficos
+        height=pxGraficos + 50
     )
     
     figDash4.update_traces(textposition='outside')
     figDash4.update_layout(globalTemplate)
     figDash4.update_layout(
         title_x=0.5
+    )
+    
+    # Customizar hover template
+    figDash4.update_traces(
+        hovertemplate="<b>%{y}</b><br>Produtos: %{customdata[0]}<extra></extra>",
+        customdata=contagem_categorias_top_n[["Produtos_Formatado"]].values
     )
     
     return figDash4

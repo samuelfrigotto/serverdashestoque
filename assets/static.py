@@ -641,14 +641,24 @@ class supportClass:
 
         for idx, (key, value) in enumerate(lstFilters.items()):
             key_str = str(key)
+            # Check if filter should be single-select
+            is_multi = value.get("multi", True)  # Default to multi=True for backward compatibility
+            
+            if is_multi:
+                dropdown_options = ["Todos"] + sorted(value["distValue"])
+                dropdown_value = [value["valueDefault"]]
+            else:
+                dropdown_options = sorted(value["distValue"])
+                dropdown_value = value["valueDefault"]
+            
             current_row.append(
                 dbc.Col(
                     [
                         dbc.Label(value["labelName"]),
                         dcc.Dropdown(
-                            multi=True,
-                            options=["Todos"] + sorted(value["distValue"]),
-                            value=[value["valueDefault"]],
+                            multi=is_multi,
+                            options=dropdown_options,
+                            value=dropdown_value,
                             id=key_str,
                         ),
                     ],

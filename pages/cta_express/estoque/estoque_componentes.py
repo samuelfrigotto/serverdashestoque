@@ -98,7 +98,18 @@ def criar_cabecalho_estoque(df_completo):
             "labelName": "Excluir Produtos",
             "valueDefault": "Nenhum",
         },
-        # REMOVER os filtros de limite daqui
+        f"{pageTag}fil_limite_baixo": {
+            "distValue": [1, 2, 3, 5, 7, 10, 12, 15, 18, 20, 25, 30, 35, 40, 45, 50],
+            "labelName": "Limite Estoque Baixo",
+            "valueDefault": str(limite_baixo),
+            "multi": False,
+        },
+        f"{pageTag}fil_limite_medio": {
+            "distValue": [30, 40, 50, 60, 75, 80, 90, 100, 120, 140, 150, 180, 200, 250, 300, 400, 500],
+            "labelName": "Limite Estoque Médio", 
+            "valueDefault": str(limite_medio),
+            "multi": False,
+        },
     }
     
     # Criar HeaderDash normal
@@ -109,65 +120,12 @@ def criar_cabecalho_estoque(df_completo):
         metricsDict,
         True,
         filters,
-        3,  # Só 3 colunas de filtros normais
+        5,  # 5 colunas de filtros (3 exclusão + 2 limites)
         6,
     )
     
-    # ADICIONAR campos de input personalizados DEPOIS do HeaderDash
-    campos_personalizados = html.Div([
-        dbc.Row([
-            dbc.Col([
-                dbc.Label("Limite Estoque Baixo:", className="fw-bold text-primary"),
-                dbc.InputGroup([
-                    dcc.Input(
-                        id=f"{pageTag}input-limite-baixo-livre",
-                        type="number",
-                        min=0,
-                        step=1,
-                        value=limite_baixo,
-                        placeholder="Ex: 15",
-                        className="form-control",
-                        style={'maxWidth': '120px'}
-                    ),
-                    dbc.InputGroupText("unidades", className="bg-light")
-                ], size="sm")
-            ], width=3),
-            dbc.Col([
-                dbc.Label("Limite Estoque Médio:", className="fw-bold text-warning"),
-                dbc.InputGroup([
-                    dcc.Input(
-                        id=f"{pageTag}input-limite-medio-livre",
-                        type="number", 
-                        min=0,
-                        step=1,
-                        value=limite_medio,
-                        placeholder="Ex: 120",
-                        className="form-control",
-                        style={'maxWidth': '120px'}
-                    ),
-                    dbc.InputGroupText("unidades", className="bg-light")
-                ], size="sm")
-            ], width=3),
-            dbc.Col([
-                html.Div([
-                    html.Small("Estoque Alto: ", className="text-muted"),
-                    html.Strong(f"> {limite_medio}", id=f"{pageTag}texto-limite-alto", className="text-success")
-                ], className="mt-3")
-            ], width=3),
-            dbc.Col([
-                dbc.Button(
-                    [html.I(className="bi bi-arrow-clockwise me-1"), "Aplicar Limites"],
-                    id=f"{pageTag}btn-aplicar-limites",
-                    color="primary",
-                    size="sm",
-                    className="mt-3"
-                )
-            ], width=3)
-        ], className="g-2 p-3 bg-light rounded mb-3", align="center")
-    ])
-    
-    # Combinar HeaderDash + campos personalizados
-    return html.Div([header_normal, campos_personalizados])
+    # Retornar apenas o HeaderDash normal
+    return header_normal
 
 
 def criar_painel_filtros(df_completo):
@@ -573,7 +531,8 @@ def criar_tabela_sugestao_compras(df_sugestao):
             columns=colunas,
             data=df_formatado.to_dict('records'),
             page_size=20,
-            filter_action='native',
+            filter_action={'type': 'native'},
+            filter_options={'placeholder_text': 'Filtrar dados...'},
             sort_action='native',
             sort_by=[{'column_id': 'Prioridade', 'direction': 'asc'}],
             style_table={'overflowX': 'auto', 'border': '1px solid #dee2e6'},
@@ -613,7 +572,7 @@ def criar_tabela_previsao_estoque_compacta(df, dias_maximos=60):
         conversores.MetricInteiroValores
     )
     df_filtrado[EstoqueColumns.PRODUTO] = df_filtrado[EstoqueColumns.PRODUTO].apply(
-        lambda x: conversores.abreviar(x, 25)
+        lambda x: conversores.abreviar(x, 40)
     )
     
     # Criar tabela mais compacta
@@ -642,6 +601,22 @@ def criar_tabela_previsao_estoque_compacta(df, dias_maximos=60):
             'textOverflow': 'ellipsis',
             'maxWidth': 0
         },
+        'style_cell_conditional': [
+            {
+                'if': {'column_id': EstoqueColumns.PRODUTO},
+                'width': '60%'
+            },
+            {
+                'if': {'column_id': EstoqueColumns.DIAS_ESTOQUE},
+                'width': '20%',
+                'textAlign': 'center'
+            },
+            {
+                'if': {'column_id': EstoqueColumns.ESTOQUE},
+                'width': '20%',
+                'textAlign': 'right'
+            }
+        ],
         'style_data_conditional': [
             {
                 'if': {'row_index': 'odd'},

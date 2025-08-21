@@ -4,7 +4,7 @@ import pandas as pd
 import dash_bootstrap_components as dbc
 from dash import Input, Output, State, html, dcc, no_update, callback_context
 from app import app, session_dataframes_cta_express as sessionDF
-from dash_table import DataTable
+from dash import dash_table
 from utils import conversores
 from .estoque_data import aplicar_filtros_exclusao_header
 from .estoque_graficos import criar_figura_vazia
@@ -466,16 +466,15 @@ def register_callbacks(app):
             Input(f"{pageTag}fil_excluir_grupo", "value"),
             Input(f"{pageTag}fil_excluir_categoria", "value"), 
             Input(f"{pageTag}fil_excluir_produto", "value"),
-            # NOVOS: inputs livres para limites
-            Input(f"{pageTag}input-limite-baixo-livre", "value"),
-            Input(f"{pageTag}input-limite-medio-livre", "value"),
-            Input(f"{pageTag}btn-aplicar-limites", "n_clicks"),
+            # Usar limites dos filtros do HeaderDash
+            Input(f"{pageTag}fil_limite_baixo", "value"),
+            Input(f"{pageTag}fil_limite_medio", "value"),
         ],
         [State(f"{pageTag}session_data", "data")]
     )
     def atualizar_metricas_completo(fil_excluir_grupos, fil_excluir_categorias, 
-                                   fil_excluir_produtos, limite_baixo_input, limite_medio_input,
-                                   btn_clicks, session_data):
+                                   fil_excluir_produtos, limite_baixo_filtro, limite_medio_filtro,
+                                   session_data):
         """Atualiza métricas usando filtros de exclusão + inputs livres de limites."""
         from assets.static import supportClass
         
@@ -490,10 +489,10 @@ def register_callbacks(app):
         config_exclusao = carregar_configuracoes_exclusao()
         df_filtrado = aplicar_filtros_exclusao(df_estoque, config_exclusao)
         
-        # Validar e usar inputs livres para limites
+        # Validar e usar limites dos filtros
         try:
-            limite_baixo = int(limite_baixo_input) if limite_baixo_input and limite_baixo_input > 0 else 10
-            limite_medio = int(limite_medio_input) if limite_medio_input and limite_medio_input > 0 else 100
+            limite_baixo = int(limite_baixo_filtro) if limite_baixo_filtro else 10
+            limite_medio = int(limite_medio_filtro) if limite_medio_filtro else 100
             
             # Validação lógica: médio deve ser maior que baixo
             if limite_medio <= limite_baixo:
@@ -513,15 +512,6 @@ def register_callbacks(app):
         
         return [supportClass.dictHeaderDash(pageTag, metricsDict)]
     
-    # NOVO: Callback para atualizar texto limite alto dinamicamente
-    @app.callback(
-        Output(f"{pageTag}texto-limite-alto", "children"),
-        Input(f"{pageTag}input-limite-medio-livre", "value")
-    )
-    def atualizar_texto_limite_alto(limite_medio_input):
-        if limite_medio_input and limite_medio_input > 0:
-            return f"> {limite_medio_input}"
-        return "> 100"
 
     # Callback principal de atualização de gráficos
     @app.callback(
@@ -545,7 +535,6 @@ def register_callbacks(app):
             Input(f"{pageTag}fil_excluir_produto", "value"),
             Input(f"{pageTag}fil_limite_baixo", "value"),
             Input(f"{pageTag}fil_limite_medio", "value"),
-            Input(f"{pageTag}btn-aplicar-limites", "n_clicks"),
             Input(f'{pageTag}dropdown-categoria-filtro', 'value'),
             Input(f'{pageTag}dropdown-grupo-filtro', 'value'),
             Input(f'{pageTag}input-nome-produto-filtro', 'value'),
@@ -605,6 +594,11 @@ def register_callbacks(app):
         try:
             limite_baixo = int(limite_baixo_filtro) if limite_baixo_filtro else 10
             limite_medio = int(limite_medio_filtro) if limite_medio_filtro else 100
+            
+            # Validação: limite baixo deve ser menor que limite médio
+            if limite_baixo >= limite_medio:
+                limite_medio = limite_baixo + 10
+                
         except (ValueError, TypeError):
             config_niveis = carregar_definicoes_niveis_estoque()
             limite_baixo = config_niveis.get("limite_estoque_baixo", 10)
@@ -614,7 +608,7 @@ def register_callbacks(app):
         fig_treemap = criar_grafico_treemap_estoque_grupo(dff_filtrado)
         fig_estoque_grupo = criar_grafico_estoque_por_grupo(dff_filtrado)
         fig_top_produtos = criar_grafico_top_produtos_estoque(dff_filtrado, n=7)
-        fig_niveis = criar_grafico_niveis_estoque(dff_filtrado, limite_baixo, limite_medio)
+        fig_niveis = criar_grafico_niveis_estoque(dff_filtrado, limite_baixo, limite_medio, height=520)
         fig_populares = criar_grafico_estoque_produtos_populares(dff_filtrado, n=7, abreviar_nomes=True)
         fig_sem_venda = criar_grafico_produtos_sem_venda_grupo(dff_filtrado)
 
@@ -771,3 +765,685 @@ def register_callbacks(app):
     # Criar callbacks para cada modal
     for i in range(1, 8):
         create_modal_callback(i)
+    
+
+    # Callbacks para conteúdo dos modais
+    @app.callback(
+        Output(f"{pageTag}modal-content-1", "children"),
+        Input(f"btn-{pageTag}-det-fig1", "n_clicks"),
+        State(f"{pageTag}session_data", "data"),
+        prevent_initial_call=True
+    )
+    def modal_content_estoque_grupo(n_clicks, session_data):
+        if not n_clicks:
+            return html.Div()
+        
+        session_id = session_data.get("session_id", "estoque_default") if session_data else "estoque_default"
+        if f"{session_id}_estoque" not in sessionDF:
+            return dbc.Alert("Dados não encontrados", color="warning")
+            
+        df_estoque = sessionDF[f"{session_id}_estoque"]
+        
+        # Análise detalhada por grupo
+        df_analise = df_estoque.groupby(EstoqueColumns.GRUPO).agg({
+            EstoqueColumns.ESTOQUE: ['sum', 'mean', 'count'],
+            EstoqueColumns.CODIGO: 'nunique'
+        }).round(2)
+        
+        df_analise.columns = ['Total_Estoque', 'Media_Estoque', 'Qtd_Registros', 'SKUs_Unicos']
+        df_analise = df_analise.reset_index().sort_values('Total_Estoque', ascending=False)
+        
+        # Formatar valores
+        df_analise['Total_Formatado'] = df_analise['Total_Estoque'].apply(conversores.MetricInteiroValores)
+        df_analise['Media_Formatada'] = df_analise['Media_Estoque'].apply(lambda x: f"{x:.1f}")
+        df_analise['SKUs_Formatados'] = df_analise['SKUs_Unicos'].apply(conversores.MetricInteiroValores)
+        
+        return html.Div([
+            html.H5("Análise Detalhada por Grupo", className="mb-4"),
+            dash_table.DataTable(
+                columns=[
+                    {"name": "Grupo", "id": EstoqueColumns.GRUPO},
+                    {"name": "Total Estoque", "id": "Total_Formatado"},
+                    {"name": "Média Estoque", "id": "Media_Formatada"},
+                    {"name": "SKUs Únicos", "id": "SKUs_Formatados"},
+                ],
+                data=df_analise.to_dict('records'),
+                style_table={'overflowX': 'auto'},
+                style_cell={'textAlign': 'left', 'padding': '10px'},
+                style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+                style_data_conditional=[
+                    {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgba(0,0,0,0.05)'}
+                ]
+            )
+        ])
+
+    @app.callback(
+        Output(f"{pageTag}modal-content-5", "children"),
+        [Input(f"btn-{pageTag}-det-fig5", "n_clicks")],
+        [State(f"{pageTag}session_data", "data"),
+         State(f"{pageTag}fil_limite_baixo", "value"),
+         State(f"{pageTag}fil_limite_medio", "value")],
+        prevent_initial_call=True
+    )
+    def modal_content_niveis_estoque(n_clicks, session_data, limite_baixo, limite_medio):
+        if not n_clicks:
+            return html.Div()
+            
+        session_id = session_data.get("session_id", "estoque_default") if session_data else "estoque_default"
+        print(f"DEBUG: Modal níveis - Session ID: {session_id}")
+        print(f"DEBUG: Chaves disponíveis em sessionDF: {list(sessionDF.keys())}")
+        
+        if f"{session_id}_estoque" not in sessionDF:
+            return dbc.Alert("Dados não encontrados", color="warning")
+            
+        df_estoque = sessionDF[f"{session_id}_estoque"]
+        print(f"DEBUG: DataFrame shape: {df_estoque.shape}")
+        print(f"DEBUG: Colunas disponíveis: {df_estoque.columns.tolist()}")
+        
+        # Aplicar filtros de exclusão das configurações primeiro (como no callback principal)
+        from .estoque_data import carregar_configuracoes_exclusao, aplicar_filtros_exclusao
+        config_exclusao = carregar_configuracoes_exclusao()
+        df_estoque = aplicar_filtros_exclusao(df_estoque, config_exclusao)
+        
+        # Usar limites dos filtros
+        try:
+            limite_baixo = int(limite_baixo) if limite_baixo else 10
+            limite_medio = int(limite_medio) if limite_medio else 100
+        except:
+            limite_baixo, limite_medio = 10, 100
+            
+        print(f"DEBUG: Limites - Baixo: {limite_baixo}, Médio: {limite_medio}")
+            
+        # Classificar produtos por nível
+        def classificar_nivel(estoque):
+            try:
+                estoque_val = float(estoque)
+                if pd.isna(estoque_val) or estoque_val <= limite_baixo:
+                    return "Baixo"
+                elif estoque_val <= limite_medio:
+                    return "Médio"
+                else:
+                    return "Alto"
+            except:
+                return "Baixo"
+        
+        df_estoque[EstoqueColumns.ESTOQUE] = pd.to_numeric(df_estoque[EstoqueColumns.ESTOQUE], errors='coerce').fillna(0)
+        df_estoque['Nivel'] = df_estoque[EstoqueColumns.ESTOQUE].apply(classificar_nivel)
+        
+        # Criar tabs para cada nível
+        tabs_content = []
+        cores_nivel = {"Baixo": "danger", "Médio": "warning", "Alto": "success"}
+        
+        # Debug: verificar distribuição de níveis
+        print(f"DEBUG: Distribuição de níveis: {df_estoque['Nivel'].value_counts().to_dict()}")
+        
+        for nivel in ["Baixo", "Médio", "Alto"]:
+            df_nivel = df_estoque[df_estoque['Nivel'] == nivel].copy()
+            print(f"DEBUG: Nível {nivel} tem {len(df_nivel)} produtos")
+            if not df_nivel.empty:
+                df_nivel = df_nivel.sort_values(EstoqueColumns.ESTOQUE, ascending=False)
+                df_nivel['Estoque_Formatado'] = df_nivel[EstoqueColumns.ESTOQUE].apply(conversores.MetricInteiroValores)
+                
+                tab_content = dbc.Tab(
+                    label=f"{nivel} ({len(df_nivel)} produtos)",
+                    tab_id=f"tab-{nivel.lower()}",
+                    children=[
+                        html.Div([
+                            html.P(f"Produtos com estoque {nivel.lower()}", className="mt-3 mb-3"),
+                            dash_table.DataTable(
+                                columns=[
+                                    {"name": "Código", "id": EstoqueColumns.CODIGO},
+                                    {"name": "Produto", "id": EstoqueColumns.PRODUTO},
+                                    {"name": "Grupo", "id": EstoqueColumns.GRUPO},
+                                    {"name": "Estoque", "id": "Estoque_Formatado"},
+                                ],
+                                data=df_nivel[[EstoqueColumns.CODIGO, EstoqueColumns.PRODUTO, 
+                                              EstoqueColumns.GRUPO, "Estoque_Formatado"]].to_dict('records'),
+                                page_size=10,
+                                style_table={'overflowX': 'auto'},
+                                style_cell={'textAlign': 'left', 'padding': '8px'},
+                                style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+                                style_data_conditional=[
+                                    {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgba(0,0,0,0.05)'}
+                                ]
+                            )
+                        ])
+                    ]
+                )
+                tabs_content.append(tab_content)
+        
+        # Se nenhuma tab foi criada, mostrar mensagem
+        if not tabs_content:
+            return html.Div([
+                html.H5("Produtos por Nível de Estoque", className="mb-4"),
+                dbc.Alert("Nenhum produto encontrado para classificação", color="info")
+            ])
+        
+        # Criar tabs para cada nível
+        tabs_content = []
+        for nivel in ["Baixo", "Médio", "Alto"]:
+            df_nivel = df_estoque[df_estoque['Nivel'] == nivel].copy()
+            if not df_nivel.empty:
+                df_nivel = df_nivel.sort_values(EstoqueColumns.ESTOQUE, ascending=False)
+                df_nivel['Estoque_Formatado'] = df_nivel[EstoqueColumns.ESTOQUE].apply(conversores.MetricInteiroValores)
+                
+                tab_content = dbc.Tab(
+                    label=f"{nivel} ({len(df_nivel)} produtos)",
+                    tab_id=f"tab-{nivel.lower()}",
+                    children=[
+                        html.Div([
+                            html.P(f"Produtos com estoque {nivel.lower()}", className="mt-3 mb-3"),
+                            dash_table.DataTable(
+                                columns=[
+                                    {"name": "Código", "id": EstoqueColumns.CODIGO},
+                                    {"name": "Produto", "id": EstoqueColumns.PRODUTO},
+                                    {"name": "Grupo", "id": EstoqueColumns.GRUPO},
+                                    {"name": "Estoque", "id": "Estoque_Formatado"},
+                                ],
+                                data=df_nivel[[EstoqueColumns.CODIGO, EstoqueColumns.PRODUTO, 
+                                              EstoqueColumns.GRUPO, "Estoque_Formatado"]].to_dict('records'),
+                                page_size=10,
+                                style_table={'overflowX': 'auto'},
+                                style_cell={'textAlign': 'left', 'padding': '8px'},
+                                style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+                                style_data_conditional=[
+                                    {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgba(0,0,0,0.05)'}
+                                ]
+                            )
+                        ])
+                    ]
+                )
+                tabs_content.append(tab_content)
+        
+        return html.Div([
+            html.H5("Produtos por Nível de Estoque", className="mb-4"),
+            html.P(f"Critérios: Baixo ≤ {limite_baixo}, Médio ≤ {limite_medio}, Alto > {limite_medio}", 
+                   className="text-muted mb-3"),
+            html.Div([
+                dbc.Tabs(
+                    tabs_content, 
+                    active_tab="tab-baixo" if any(tab.tab_id == "tab-baixo" for tab in tabs_content) else tabs_content[0].tab_id
+                )
+            ], style={
+                "color": "#000000 !important",
+                "--bs-nav-tabs-link-color": "#000000 !important",
+                "--bs-nav-tabs-link-hover-color": "#0056b3 !important",
+                "--bs-nav-tabs-link-active-color": "#ffffff !important",
+                "--bs-nav-tabs-link-active-bg": "#007bff !important"
+            })
+        ])
+
+    @app.callback(
+        Output(f"{pageTag}modal-content-2", "children"),
+        Input(f"btn-{pageTag}-det-fig2", "n_clicks"),
+        State(f"{pageTag}session_data", "data"),
+        prevent_initial_call=True
+    )
+    def modal_content_estoque_populares(n_clicks, session_data):
+        if not n_clicks:
+            return html.Div()
+            
+        session_id = session_data.get("session_id", "estoque_default") if session_data else "estoque_default"
+        if f"{session_id}_estoque" not in sessionDF:
+            return dbc.Alert("Dados não encontrados", color="warning")
+            
+        df_estoque = sessionDF[f"{session_id}_estoque"]
+        
+        # Análise de correlação estoque vs vendas
+        df_analise = df_estoque.copy()
+        df_analise[EstoqueColumns.ESTOQUE] = pd.to_numeric(df_analise[EstoqueColumns.ESTOQUE], errors='coerce').fillna(0)
+        df_analise[EstoqueColumns.VENDA_MENSAL] = pd.to_numeric(df_analise[EstoqueColumns.VENDA_MENSAL], errors='coerce').fillna(0)
+        df_analise['Eficiencia_Vendas'] = df_analise[EstoqueColumns.VENDA_MENSAL] / (df_analise[EstoqueColumns.ESTOQUE] + 1)
+        
+        # Classificar produtos
+        top_vendas = df_analise.nlargest(10, EstoqueColumns.VENDA_MENSAL)
+        top_estoque = df_analise.nlargest(10, EstoqueColumns.ESTOQUE)
+        top_eficiencia = df_analise.nlargest(10, 'Eficiencia_Vendas')
+        
+        # Formatar dados
+        for df_temp in [top_vendas, top_estoque, top_eficiencia]:
+            if not df_temp.empty:
+                df_temp['Venda_Formatada'] = df_temp[EstoqueColumns.VENDA_MENSAL].apply(conversores.MetricInteiroValores)
+                df_temp['Estoque_Formatado'] = df_temp[EstoqueColumns.ESTOQUE].apply(conversores.MetricInteiroValores)
+                df_temp['Eficiencia_Formatada'] = df_temp['Eficiencia_Vendas'].apply(lambda x: f"{x:.2f}")
+        
+        print(f"DEBUG: Top vendas: {len(top_vendas)}, Top estoque: {len(top_estoque)}, Top eficiência: {len(top_eficiencia)}")
+        
+        return html.Div([
+            html.H5("Análise: Estoque vs Vendas", className="mb-4"),
+            dbc.Tabs([
+                dbc.Tab(label=f"Top Vendas ({len(top_vendas)})", tab_id="tab-vendas", children=[
+                    html.Div([
+                        html.P("Produtos com maior volume de vendas mensais", className="mt-3 mb-3"),
+                        criar_tabela_modal(top_vendas, [EstoqueColumns.CODIGO, EstoqueColumns.PRODUTO, EstoqueColumns.GRUPO, 'Venda_Formatada', 'Estoque_Formatado'], 
+                                         ['Código', 'Produto', 'Grupo', 'Vendas', 'Estoque'])
+                    ])
+                ]),
+                dbc.Tab(label=f"Top Estoque ({len(top_estoque)})", tab_id="tab-estoque", children=[
+                    html.Div([
+                        html.P("Produtos com maior estoque atual", className="mt-3 mb-3"),
+                        criar_tabela_modal(top_estoque, [EstoqueColumns.CODIGO, EstoqueColumns.PRODUTO, EstoqueColumns.GRUPO, 'Estoque_Formatado', 'Venda_Formatada'],
+                                         ['Código', 'Produto', 'Grupo', 'Estoque', 'Vendas'])
+                    ])
+                ]),
+                dbc.Tab(label=f"Mais Eficientes ({len(top_eficiencia)})", tab_id="tab-eficiencia", children=[
+                    html.Div([
+                        html.P("Produtos com melhor relação vendas/estoque", className="mt-3 mb-3"),
+                        criar_tabela_modal(top_eficiencia, [EstoqueColumns.CODIGO, EstoqueColumns.PRODUTO, EstoqueColumns.GRUPO, 'Eficiencia_Formatada', 'Venda_Formatada'],
+                                         ['Código', 'Produto', 'Grupo', 'Eficiência', 'Vendas'])
+                    ])
+                ])
+            ], active_tab="tab-vendas")
+        ], style={
+            "color": "#000000 !important",
+            "--bs-nav-tabs-link-color": "#000000 !important",
+            "--bs-nav-tabs-link-hover-color": "#0056b3 !important", 
+            "--bs-nav-tabs-link-active-color": "#ffffff !important",
+            "--bs-nav-tabs-link-active-bg": "#007bff !important"
+        })
+
+    @app.callback(
+        Output(f"{pageTag}modal-content-4", "children"),
+        Input(f"btn-{pageTag}-det-fig4", "n_clicks"),
+        State(f"{pageTag}session_data", "data"),
+        prevent_initial_call=True
+    )
+    def modal_content_top_produtos(n_clicks, session_data):
+        if not n_clicks:
+            return html.Div()
+            
+        session_id = session_data.get("session_id", "estoque_default") if session_data else "estoque_default"
+        if f"{session_id}_estoque" not in sessionDF:
+            return dbc.Alert("Dados não encontrados", color="warning")
+            
+        df_estoque = sessionDF[f"{session_id}_estoque"]
+        
+        # Análise completa dos top produtos
+        top_produtos = df_estoque.nlargest(20, EstoqueColumns.ESTOQUE).copy()
+        top_produtos['Estoque_Formatado'] = top_produtos[EstoqueColumns.ESTOQUE].apply(conversores.MetricInteiroValores)
+        top_produtos['Venda_Formatada'] = top_produtos[EstoqueColumns.VENDA_MENSAL].apply(conversores.MetricInteiroValores)
+        top_produtos['Dias_Formatados'] = top_produtos[EstoqueColumns.DIAS_ESTOQUE].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/A")
+        
+        # Estatísticas gerais
+        total_estoque = df_estoque[EstoqueColumns.ESTOQUE].sum()
+        estoque_top20 = top_produtos[EstoqueColumns.ESTOQUE].sum()
+        percentual_concentracao = (estoque_top20 / total_estoque * 100) if total_estoque > 0 else 0
+        
+        return html.Div([
+            html.H5("Top 20 Produtos com Maior Estoque", className="mb-4"),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("Concentração", className="card-title"),
+                            html.H4(f"{percentual_concentracao:.1f}%", className="text-primary"),
+                            html.P("do estoque total", className="text-muted small")
+                        ])
+                    ])
+                ], width=4),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("Valor Total", className="card-title"),
+                            html.H4(conversores.MetricInteiroValores(estoque_top20), className="text-success"),
+                            html.P("unidades em estoque", className="text-muted small")
+                        ])
+                    ])
+                ], width=4),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("Grupos", className="card-title"),
+                            html.H4(top_produtos[EstoqueColumns.GRUPO].nunique(), className="text-info"),
+                            html.P("grupos diferentes", className="text-muted small")
+                        ])
+                    ])
+                ], width=4)
+            ], className="mb-4"),
+            
+            dash_table.DataTable(
+                columns=[
+                    {"name": "Posição", "id": "rank"},
+                    {"name": "Código", "id": EstoqueColumns.CODIGO},
+                    {"name": "Produto", "id": EstoqueColumns.PRODUTO},
+                    {"name": "Grupo", "id": EstoqueColumns.GRUPO},
+                    {"name": "Estoque", "id": "Estoque_Formatado"},
+                    {"name": "Venda Mensal", "id": "Venda_Formatada"},
+                    {"name": "Dias Estoque", "id": "Dias_Formatados"}
+                ],
+                data=[{**row, 'rank': i+1} for i, row in enumerate(
+                    top_produtos[[EstoqueColumns.CODIGO, EstoqueColumns.PRODUTO, EstoqueColumns.GRUPO, 
+                                 "Estoque_Formatado", "Venda_Formatada", "Dias_Formatados"]].to_dict('records')
+                )],
+                style_table={'overflowX': 'auto'},
+                style_cell={'textAlign': 'left', 'padding': '8px'},
+                style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+                style_data_conditional=[
+                    {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgba(0,0,0,0.05)'},
+                    {'if': {'column_id': 'rank'}, 'textAlign': 'center', 'fontWeight': 'bold'}
+                ]
+            )
+        ])
+
+    @app.callback(
+        Output(f"{pageTag}modal-content-3", "children"),
+        Input(f"btn-{pageTag}-det-fig3", "n_clicks"),
+        State(f"{pageTag}session_data", "data"),
+        prevent_initial_call=True
+    )
+    def modal_content_treemap(n_clicks, session_data):
+        if not n_clicks:
+            return html.Div()
+            
+        session_id = session_data.get("session_id", "estoque_default") if session_data else "estoque_default"
+        if f"{session_id}_estoque" not in sessionDF:
+            return dbc.Alert("Dados não encontrados", color="warning")
+            
+        df_estoque = sessionDF[f"{session_id}_estoque"]
+        
+        # Análise hierárquica por grupo
+        analise_grupos = df_estoque.groupby(EstoqueColumns.GRUPO).agg({
+            EstoqueColumns.ESTOQUE: ['sum', 'mean', 'count'],
+            EstoqueColumns.CODIGO: 'nunique',
+            EstoqueColumns.VENDA_MENSAL: 'sum'
+        }).round(2)
+        
+        analise_grupos.columns = ['Total_Estoque', 'Media_Estoque', 'Produtos', 'SKUs', 'Total_Vendas']
+        analise_grupos = analise_grupos.reset_index().sort_values('Total_Estoque', ascending=False)
+        
+        # Calcular percentuais
+        total_geral = analise_grupos['Total_Estoque'].sum()
+        analise_grupos['Percentual'] = (analise_grupos['Total_Estoque'] / total_geral * 100).round(1)
+        analise_grupos['Percentual_Acum'] = analise_grupos['Percentual'].cumsum().round(1)
+        
+        # Formatar valores
+        for col in ['Total_Estoque', 'Total_Vendas', 'SKUs']:
+            analise_grupos[f'{col}_Fmt'] = analise_grupos[col].apply(conversores.MetricInteiroValores)
+        analise_grupos['Media_Fmt'] = analise_grupos['Media_Estoque'].apply(lambda x: f"{x:.1f}")
+        
+        return html.Div([
+            html.H5("Distribuição Hierárquica por Grupo", className="mb-4"),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("Análise ABC", className="mb-3"),
+                            html.P("Classificação por concentração de estoque:", className="text-muted small mb-2"),
+                            html.Div([
+                                dbc.Badge("Classe A", color="success", className="me-2"),
+                                html.Small("80% do estoque"),
+                            ], className="mb-2"),
+                            html.Div([
+                                dbc.Badge("Classe B", color="warning", className="me-2"),
+                                html.Small("15% do estoque"),
+                            ], className="mb-2"),
+                            html.Div([
+                                dbc.Badge("Classe C", color="secondary", className="me-2"),
+                                html.Small("5% do estoque"),
+                            ])
+                        ])
+                    ])
+                ], width=12, lg=4),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("Top 3 Grupos", className="mb-3"),
+                            html.Div([
+                                html.Div([
+                                    html.Strong(f"1º {analise_grupos.iloc[0][EstoqueColumns.GRUPO]}"),
+                                    html.Br(),
+                                    html.Small(f"{analise_grupos.iloc[0]['Percentual']:.1f}% do estoque", className="text-muted")
+                                ], className="mb-2"),
+                                html.Div([
+                                    html.Strong(f"2º {analise_grupos.iloc[1][EstoqueColumns.GRUPO] if len(analise_grupos) > 1 else 'N/A'}"),
+                                    html.Br(),
+                                    html.Small(f"{analise_grupos.iloc[1]['Percentual']:.1f}% do estoque" if len(analise_grupos) > 1 else "N/A", className="text-muted")
+                                ], className="mb-2"),
+                                html.Div([
+                                    html.Strong(f"3º {analise_grupos.iloc[2][EstoqueColumns.GRUPO] if len(analise_grupos) > 2 else 'N/A'}"),
+                                    html.Br(),
+                                    html.Small(f"{analise_grupos.iloc[2]['Percentual']:.1f}% do estoque" if len(analise_grupos) > 2 else "N/A", className="text-muted")
+                                ])
+                            ])
+                        ])
+                    ])
+                ], width=12, lg=8)
+            ], className="mb-4"),
+            
+            dash_table.DataTable(
+                columns=[
+                    {"name": "Grupo", "id": EstoqueColumns.GRUPO},
+                    {"name": "Total Estoque", "id": "Total_Estoque_Fmt"},
+                    {"name": "% Individual", "id": "Percentual", "type": "numeric", "format": {"specifier": ".1f"}},
+                    {"name": "% Acumulado", "id": "Percentual_Acum", "type": "numeric", "format": {"specifier": ".1f"}},
+                    {"name": "Média por SKU", "id": "Media_Fmt"},
+                    {"name": "SKUs Únicos", "id": "SKUs_Fmt"},
+                    {"name": "Total Vendas", "id": "Total_Vendas_Fmt"}
+                ],
+                data=analise_grupos.to_dict('records'),
+                style_table={'overflowX': 'auto'},
+                style_cell={'textAlign': 'left', 'padding': '8px'},
+                style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+                style_data_conditional=[
+                    {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgba(0,0,0,0.05)'},
+                    {'if': {'column_id': 'Percentual', 'filter_query': '{Percentual} >= 20'}, 'backgroundColor': '#d4edda', 'fontWeight': 'bold'},
+                    {'if': {'column_id': 'Percentual_Acum', 'filter_query': '{Percentual_Acum} <= 80'}, 'backgroundColor': '#d4edda'}
+                ]
+            )
+        ])
+
+    @app.callback(
+        Output(f"{pageTag}modal-content-6", "children"),
+        Input(f"btn-{pageTag}-det-fig6", "n_clicks"),
+        State(f"{pageTag}session_data", "data"),
+        prevent_initial_call=True
+    )
+    def modal_content_categorias_baixo(n_clicks, session_data):
+        if not n_clicks:
+            return html.Div()
+            
+        session_id = session_data.get("session_id", "estoque_default") if session_data else "estoque_default"
+        if f"{session_id}_estoque" not in sessionDF:
+            return dbc.Alert("Dados não encontrados", color="warning")
+            
+        df_estoque = sessionDF[f"{session_id}_estoque"]
+        
+        # Identificar produtos com estoque baixo
+        df_baixo = identificar_produtos_estoque_baixo(df_estoque, 10)  # usar limite padrão
+        
+        if df_baixo.empty:
+            return dbc.Alert("Nenhum produto com estoque baixo encontrado!", color="success")
+        
+        # Análise por categoria
+        analise_cat = df_baixo.groupby(EstoqueColumns.CATEGORIA).agg({
+            EstoqueColumns.CODIGO: 'nunique',
+            EstoqueColumns.ESTOQUE: ['sum', 'mean'],
+            EstoqueColumns.VENDA_MENSAL: 'sum'
+        }).round(2)
+        
+        analise_cat.columns = ['Produtos_Baixos', 'Estoque_Total', 'Estoque_Medio', 'Vendas_Total']
+        analise_cat = analise_cat.reset_index().sort_values('Produtos_Baixos', ascending=False)
+        
+        # Top categorias críticas
+        top_categorias = analise_cat.head(5)
+        
+        return html.Div([
+            html.H5("Análise Detalhada: Categorias com Estoque Baixo", className="mb-4"),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(str(len(analise_cat)), className="text-danger"),
+                            html.P("Categorias Afetadas", className="mb-0")
+                        ])
+                    ])
+                ], width=3),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(conversores.MetricInteiroValores(analise_cat['Produtos_Baixos'].sum()), className="text-warning"),
+                            html.P("Produtos Críticos", className="mb-0")
+                        ])
+                    ])
+                ], width=3),
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4(analise_cat['Categoria'].iloc[0] if not analise_cat.empty else "N/A", className="text-info"),
+                            html.P("Categoria Mais Crítica", className="mb-0")
+                        ])
+                    ])
+                ], width=6)
+            ], className="mb-4"),
+            
+            html.H6("Ranking Completo por Categoria", className="mb-3"),
+            dash_table.DataTable(
+                columns=[
+                    {"name": "Posição", "id": "rank"},
+                    {"name": "Categoria", "id": EstoqueColumns.CATEGORIA},
+                    {"name": "Produtos Críticos", "id": "Produtos_Baixos"},
+                    {"name": "Estoque Total", "id": "Estoque_Total_Fmt"},
+                    {"name": "Estoque Médio", "id": "Estoque_Medio_Fmt"},
+                    {"name": "Vendas Mensais", "id": "Vendas_Total_Fmt"}
+                ],
+                data=[{
+                    **row, 
+                    'rank': i+1,
+                    'Estoque_Total_Fmt': conversores.MetricInteiroValores(row['Estoque_Total']),
+                    'Estoque_Medio_Fmt': f"{row['Estoque_Medio']:.1f}",
+                    'Vendas_Total_Fmt': conversores.MetricInteiroValores(row['Vendas_Total'])
+                } for i, row in enumerate(analise_cat.to_dict('records'))],
+                style_table={'overflowX': 'auto'},
+                style_cell={'textAlign': 'left', 'padding': '8px'},
+                style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+                style_data_conditional=[
+                    {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgba(0,0,0,0.05)'},
+                    {'if': {'column_id': 'rank'}, 'textAlign': 'center', 'fontWeight': 'bold'},
+                    {'if': {'row_index': [0, 1, 2]}, 'backgroundColor': 'rgba(220, 53, 69, 0.1)'}
+                ]
+            )
+        ])
+
+    @app.callback(
+        Output(f"{pageTag}modal-content-7", "children"),
+        Input(f"btn-{pageTag}-det-fig7", "n_clicks"),
+        State(f"{pageTag}session_data", "data"),
+        prevent_initial_call=True
+    )
+    def modal_content_sem_venda(n_clicks, session_data):
+        if not n_clicks:
+            return html.Div()
+            
+        session_id = session_data.get("session_id", "estoque_default") if session_data else "estoque_default"
+        if f"{session_id}_estoque" not in sessionDF:
+            return dbc.Alert("Dados não encontrados", color="warning")
+            
+        df_estoque = sessionDF[f"{session_id}_estoque"]
+        
+        # Produtos sem venda
+        df_estoque[EstoqueColumns.VENDA_MENSAL] = pd.to_numeric(df_estoque[EstoqueColumns.VENDA_MENSAL], errors='coerce').fillna(0)
+        df_sem_venda = df_estoque[df_estoque[EstoqueColumns.VENDA_MENSAL] <= 0].copy()
+        
+        print(f"DEBUG: Total produtos: {len(df_estoque)}")
+        print(f"DEBUG: Produtos sem venda: {len(df_sem_venda)}")
+        print(f"DEBUG: Valores de venda únicos: {sorted(df_estoque[EstoqueColumns.VENDA_MENSAL].unique())}")
+        
+        if df_sem_venda.empty:
+            return dbc.Alert("Todos os produtos têm vendas registradas!", color="success")
+        
+        # Análise por grupo
+        analise_grupo = df_sem_venda.groupby(EstoqueColumns.GRUPO).agg({
+            EstoqueColumns.CODIGO: 'nunique',
+            EstoqueColumns.ESTOQUE: ['sum', 'mean']
+        }).round(2)
+        
+        analise_grupo.columns = ['Produtos_Sem_Venda', 'Estoque_Parado', 'Estoque_Medio']
+        analise_grupo = analise_grupo.reset_index().sort_values('Produtos_Sem_Venda', ascending=False)
+        
+        # Produtos individuais ordenados por estoque
+        produtos_detalhados = df_sem_venda.nlargest(20, EstoqueColumns.ESTOQUE).copy()
+        produtos_detalhados['Estoque_Fmt'] = produtos_detalhados[EstoqueColumns.ESTOQUE].apply(conversores.MetricInteiroValores)
+        
+        valor_estoque_parado = df_sem_venda[EstoqueColumns.ESTOQUE].sum()
+        total_produtos_sem_venda = len(df_sem_venda)
+        
+        return html.Div([
+            html.H5("Análise: Produtos Sem Movimento", className="mb-4"),
+            dbc.Alert([
+                html.I(className="bi bi-exclamation-triangle me-2"),
+                f"Encontrados {conversores.MetricInteiroValores(total_produtos_sem_venda)} produtos sem vendas, ",
+                f"representando {conversores.MetricInteiroValores(valor_estoque_parado)} unidades paradas em estoque."
+            ], color="warning", className="mb-4"),
+            
+            dbc.Tabs([
+                dbc.Tab(label=f"Por Grupo ({len(analise_grupo)})", tab_id="tab-grupo", children=[
+                    html.Div([
+                        html.P("Distribuição de produtos sem venda por grupo", className="mt-3 mb-3"),
+                        dash_table.DataTable(
+                            columns=[
+                                {"name": "Grupo", "id": EstoqueColumns.GRUPO},
+                                {"name": "Produtos Sem Venda", "id": "Produtos_Sem_Venda"},
+                                {"name": "Estoque Parado", "id": "Estoque_Parado_Fmt"},
+                                {"name": "Estoque Médio", "id": "Estoque_Medio_Fmt"}
+                            ],
+                            data=[{
+                                **row,
+                                'Estoque_Parado_Fmt': conversores.MetricInteiroValores(row['Estoque_Parado']),
+                                'Estoque_Medio_Fmt': f"{row['Estoque_Medio']:.1f}"
+                            } for row in analise_grupo.to_dict('records')],
+                            style_table={'overflowX': 'auto'},
+                            style_cell={'textAlign': 'left', 'padding': '8px'},
+                            style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+                            style_data_conditional=[
+                                {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgba(0,0,0,0.05)'}
+                            ]
+                        )
+                    ])
+                ]),
+                dbc.Tab(label=f"Top 20 Produtos ({len(produtos_detalhados)})", tab_id="tab-produtos", children=[
+                    html.Div([
+                        html.P("Produtos sem venda com maior estoque", className="mt-3 mb-3"),
+                        dash_table.DataTable(
+                            columns=[
+                                {"name": "Ranking", "id": "rank"},
+                                {"name": "Código", "id": EstoqueColumns.CODIGO},
+                                {"name": "Produto", "id": EstoqueColumns.PRODUTO},
+                                {"name": "Grupo", "id": EstoqueColumns.GRUPO},
+                                {"name": "Estoque", "id": "Estoque_Fmt"}
+                            ],
+                            data=[{**row, 'rank': i+1} for i, row in enumerate(
+                                produtos_detalhados[[EstoqueColumns.CODIGO, EstoqueColumns.PRODUTO, 
+                                                   EstoqueColumns.GRUPO, 'Estoque_Fmt']].to_dict('records')
+                            )],
+                            style_table={'overflowX': 'auto'},
+                            style_cell={'textAlign': 'left', 'padding': '8px'},
+                            style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+                            style_data_conditional=[
+                                {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgba(0,0,0,0.05)'},
+                                {'if': {'column_id': 'rank'}, 'textAlign': 'center', 'fontWeight': 'bold'}
+                            ]
+                        )
+                    ])
+                ])
+            ], active_tab="tab-grupo")
+        ], style={
+            "color": "#000000 !important",
+            "--bs-nav-tabs-link-color": "#000000 !important",
+            "--bs-nav-tabs-link-hover-color": "#0056b3 !important",
+            "--bs-nav-tabs-link-active-color": "#ffffff !important", 
+            "--bs-nav-tabs-link-active-bg": "#007bff !important"
+        })
+
+def criar_tabela_modal(df, colunas_ids, colunas_nomes):
+    """Helper function to create modal tables."""
+    return dash_table.DataTable(
+        columns=[{"name": nome, "id": col_id} for nome, col_id in zip(colunas_nomes, colunas_ids)],
+        data=df[colunas_ids].to_dict('records'),
+        page_size=10,
+        style_table={'overflowX': 'auto'},
+        style_cell={'textAlign': 'left', 'padding': '8px'},
+        style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+        style_data_conditional=[
+            {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgba(0,0,0,0.05)'}
+        ]
+    )
